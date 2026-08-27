@@ -171,51 +171,23 @@ function M.open_picker()
     end)
   end
   vim.keymap.set("n", "<CR>", open_selected, opts)
+  local function move_and_open(key)
+    vim.cmd("normal! " .. key)
+    vim.schedule(open_selected)
+  end
+  vim.keymap.set("n", "j", function() move_and_open("j") end, opts)
+  vim.keymap.set("n", "k", function() move_and_open("k") end, opts)
+  vim.keymap.set("n", "<Down>", function() move_and_open("j") end, opts)
+  vim.keymap.set("n", "<Up>", function() move_and_open("k") end, opts)
   vim.keymap.set("n", "q", function() 
     if vim.api.nvim_win_is_valid(picker_state.win) then pcall(vim.api.nvim_win_close, picker_state.win, false) end
     picker_state.win=nil
   end, opts)
   vim.keymap.set("n", "r", function() M.refresh(); vim.notify("Refreshed " .. #M.get_conflict_files() .. " conflicts", vim.log.levels.INFO) end, opts)
   vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, picker_state.win, false) end, opts)
-  -- auto-preview: selecting file in list (j/k) shows 3-pane without needing <CR>
-  local preview_timer = nil
-  local last_lnum = -1
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    buffer = picker_state.buf,
-    callback = function()
-      local lnum = vim.api.nvim_win_get_cursor(picker_state.win)[1]
-      if lnum == last_lnum then return end
-      last_lnum = lnum
-      if preview_timer then vim.fn.timer_stop(preview_timer) end
-      preview_timer = vim.fn.timer_start(120, function()
-        -- reuse open_selected but without notify spam
-        local line = vim.api.nvim_buf_get_lines(picker_state.buf, lnum-1, lnum, false)[1] or ""
-        local file = line:match("^%s*%d+%s+●%s+(.+)$")
-        if not file or file:match("^─") or file:match("^MERGE") or file:match("^Tip:") then return end
-        file = vim.trim(file)
-        if vim.fn.filereadable(file)==0 then
-          local out = vim.system({"git","rev-parse","--show-toplevel"}, {text=true}):wait()
-          if out.code==0 then
-            local root = vim.trim(out.stdout)
-            local full = root.."/"..file
-            if vim.fn.filereadable(full)==1 then file=full else return end
-          else return end
-        end
-        vim.schedule(function()
-          -- open without re-creating picker, keep picker visible
-          vim.cmd("edit " .. vim.fn.fnameescape(file))
-          vim.schedule(function()
-            local bufnr = vim.api.nvim_get_current_buf()
-            if require("mergeui.parser").has_conflicts(bufnr) then
-              require("mergeui").open(bufnr)
-            end
-          end)
-        end)
-      end)
-    end,
-  })
   if #files > 0 then
-    pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 4, 0 })
+    -- Park immediately above the first file. One j selects it and opens MergeUI.
+    pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 3, 0 })
   end
   vim.notify(string.format("MergeUI: %d unresolved file(s)", #files), vim.log.levels.INFO)
   return files

@@ -5,6 +5,39 @@ local picker = require("mergeui.picker")
 
 local M = {}
 
+local function return_to_picker()
+  local files = picker.open_picker()
+  if #files == 0 then
+    vim.notify("MergeUI: all conflicts resolved ✓", vim.log.levels.INFO)
+  end
+end
+
+function M.write_quit()
+  local state = ui.get_state()
+  if not state.active then
+    vim.cmd("wq")
+    return
+  end
+
+  local result_buf = state.middle_buf
+  if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
+    vim.api.nvim_buf_call(result_buf, function() vim.cmd("silent write") end)
+  end
+
+  ui.close()
+  if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
+    pcall(vim.api.nvim_buf_delete, result_buf, { force = false })
+  end
+  return_to_picker()
+end
+
+function M._expand_write_quit()
+  if vim.fn.getcmdtype() == ":" and vim.fn.getcmdline() == "wq" and ui.get_state().active then
+    return "MergeUIWriteQuit"
+  end
+  return "wq"
+end
+
 local function current_conflict_idx()
   local state = ui.get_state()
   if #state.conflicts == 0 then return nil end
@@ -143,6 +176,12 @@ function M.setup(opts)
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeNone", function() apply("none") end, { desc = "Dismiss conflict (X)" })
   end
 
+  pcall(vim.api.nvim_create_user_command, "MergeUIWriteQuit", M.write_quit, {
+    desc = "Write result, close all merge panes, and return to conflict list",
+  })
+  _G.MergeUIExpandWriteQuit = M._expand_write_quit
+  vim.cmd([[cnoreabbrev <expr> wq v:lua.MergeUIExpandWriteQuit()]])
+
   -- autocmd to keep indicators fresh
   local grp = vim.api.nvim_create_augroup("RubymineMerge", { clear = true })
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
@@ -223,8 +262,9 @@ function M.open(bufnr)
   -- center view
   pcall(function() vim.api.nvim_set_current_win(ui.get_state().middle_win) end)
 
-  -- :w / :q behavior: :w always writes RESULT (middle), :q closes all 3 panes
-  local grp2 = vim.api.nvim_create_augroup("TriMergeQuit", { clear = true })
+  -- :w writes RESULT and keeps the panes open. Active-session :wq is expanded
+  -- to :MergeUIWriteQuit, which writes, closes all three, and restores the list.
+  local grp2 = vim.api.nvim_create_augroup("MergeUIFlow", { clear = true })
   -- :w in side panes should write the middle RESULT instead of scratch
   for _, b in ipairs({ ui.get_state().left_buf, ui.get_state().right_buf }) do
     if b and vim.api.nvim_buf_is_valid(b) then
@@ -236,11 +276,11 @@ function M.open(bufnr)
           local st = ui.get_state()
           if st.middle_buf and vim.api.nvim_buf_is_valid(st.middle_buf) then
             vim.api.nvim_buf_call(st.middle_buf, function() vim.cmd("silent write") end)
-            vim.notify("TriMerge: wrote RESULT (" .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(st.middle_buf), ":t") .. ")", vim.log.levels.INFO)
+            vim.notify("MergeUI: wrote RESULT (" .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(st.middle_buf), ":t") .. ")", vim.log.levels.INFO)
           end
         end,
       })
-      -- :q / :wq from any pane should close entire 3-pane layout (like RubyMine Close)
+        -- Plain :q closes the merge layout. :wq is handled by MergeUIWriteQuit.
       vim.api.nvim_create_autocmd("QuitPre", {
         group = grp2,
         buffer = b,
@@ -250,7 +290,7 @@ function M.open(bufnr)
       })
     end
   end
-  -- :q / :wq from RESULT buffer
+  -- Plain :q from RESULT closes the merge layout.
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_create_autocmd("QuitPre", {
       group = grp2,
@@ -259,8 +299,7 @@ function M.open(bufnr)
         vim.schedule(function() pcall(ui.close) end)
       end,
     })
-    -- :q is now handled, but also handle :wq (write+quit) already covered by BufWriteCmd above
-    -- Ensure :w writes correctly even after close scheduled: normal :w still works for middle
+    -- Normal :w is not intercepted and leaves the three panes open.
   end
   -- Fallback: if user does :qa or window closed, cleanup
   vim.api.nvim_create_autocmd({ "WinClosed", "BufWipeout" }, {
@@ -288,7 +327,7 @@ function M.open(bufnr)
       end
     end,
   })
-  -- Also hook BufWritePost for :w (without :q) to refresh picker in background so :wq filtered list is accurate
+  -- Refresh the hidden list after :w, but keep the three panes open.
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = grp2,
     buffer = bufnr,
