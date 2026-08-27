@@ -123,20 +123,19 @@ function M.open_picker()
   vim.wo[picker_state.win].winbar = " MERGEUI  │  Conflicts List "
   -- refresh content
   files = M.refresh()
-  -- keymaps
+  -- keymaps (Enter or single/double click to open — no extra <CR> needed)
   local opts = { buffer=picker_state.buf, silent=true, noremap=true }
-  vim.keymap.set("n", "<CR>", function()
+  local function open_selected()
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
     local line = vim.api.nvim_buf_get_lines(picker_state.buf, lnum-1, lnum, false)[1] or ""
     local file = line:match("^%s*%d+%s+(.+)$")
     if not file then
-      -- try current line as file if header not matched, try <cfile>
       file = vim.fn.expand("<cfile>")
       if file=="" then vim.notify("No file on line", vim.log.levels.WARN); return end
     end
     file = vim.trim(file)
+    if file:match("^─") or file:match("^MERGE") or file:match("^Tip:") then return end
     if vim.fn.filereadable(file)==0 then
-      -- try absolute via git root
       local out = vim.system({"git","rev-parse","--show-toplevel"}, {text=true}):wait()
       if out.code==0 then
         local root = vim.trim(out.stdout)
@@ -145,7 +144,6 @@ function M.open_picker()
       end
     end
     vim.cmd("edit " .. vim.fn.fnameescape(file))
-    -- defer open to let file load
     vim.schedule(function()
       local bufnr = vim.api.nvim_get_current_buf()
       if require("mergeui.parser").has_conflicts(bufnr) then
@@ -154,14 +152,23 @@ function M.open_picker()
         vim.notify("No conflicts in " .. file, vim.log.levels.INFO)
       end
     end)
+  end
+  vim.keymap.set("n", "<CR>", open_selected, opts)
+  -- single click = open immediately (without needing Enter)
+  vim.keymap.set("n", "<LeftMouse>", function()
+    -- let Neovim move cursor first, then open
+    vim.schedule(open_selected)
   end, opts)
+  vim.keymap.set("n", "<2-LeftMouse>", open_selected, opts)
   vim.keymap.set("n", "q", function() 
     if vim.api.nvim_win_is_valid(picker_state.win) then pcall(vim.api.nvim_win_close, picker_state.win, false) end
     picker_state.win=nil
   end, opts)
   vim.keymap.set("n", "r", function() M.refresh(); vim.notify("Refreshed " .. #M.get_conflict_files() .. " conflicts", vim.log.levels.INFO) end, opts)
   vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, picker_state.win, false) end, opts)
-  vim.notify(string.format("MergeUI: %d conflict file(s)", #files), vim.log.levels.INFO)
+  -- also make picker focusable with mouse
+  vim.wo[picker_state.win].mouse = "a"
+  vim.notify(string.format("MergeUI: %d conflict file(s) — click file to open 3-pane", #files), vim.log.levels.INFO)
   return files
 end
 
