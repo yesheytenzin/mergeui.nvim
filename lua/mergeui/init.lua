@@ -206,7 +206,7 @@ function M.open(bufnr)
         group = grp2,
         buffer = b,
         callback = function()
-          vim.schedule(function() ui.close() end)
+          vim.schedule(function() pcall(ui.close) end)
         end,
       })
     end
@@ -217,7 +217,7 @@ function M.open(bufnr)
       group = grp2,
       buffer = bufnr,
       callback = function()
-        vim.schedule(function() ui.close() end)
+        vim.schedule(function() pcall(ui.close) end)
       end,
     })
     -- :q is now handled, but also handle :wq (write+quit) already covered by BufWriteCmd above
@@ -230,7 +230,7 @@ function M.open(bufnr)
       local st = ui.get_state()
       if st.active and (ev.buf == st.left_buf or ev.buf == st.right_buf or ev.buf == st.middle_buf) then
         vim.schedule(function()
-          if st.active then ui.close() end
+          if st.active then pcall(ui.close) end
         end)
       end
     end,

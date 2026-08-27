@@ -286,9 +286,12 @@ end
 
 function M.close()
   if not state.active then return end
+  -- prevent re-entrancy during :q
+  if state._closing then return end
+  state._closing = true
   for _, w in ipairs({ state.left_win, state.right_win }) do
     if w and vim.api.nvim_win_is_valid(w) then
-      vim.api.nvim_win_close(w, true)
+      pcall(vim.api.nvim_win_close, w, true)
     end
   end
   if state.left_buf and vim.api.nvim_buf_is_valid(state.left_buf) then
@@ -307,6 +310,7 @@ function M.close()
     M.clear_indicators(state.middle_buf)
   end
   state.active = false
+  state._closing = false
   state.conflicts = {}
   if state.middle_win and vim.api.nvim_win_is_valid(state.middle_win) then
     vim.api.nvim_set_current_win(state.middle_win)
