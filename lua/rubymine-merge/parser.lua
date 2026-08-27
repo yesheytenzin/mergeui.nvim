@@ -1,2 +1,1 @@
--- Compatibility shim: rubymine-merge -> tri-merge (renamed to tri-merge.nvim)
-return require("tri-merge.parser")
+return require("mergeui.parser") -- shim

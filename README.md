@@ -1,4 +1,4 @@
-# tri-merge.nvim
+# mergeui.nvim
 
 RubyMine / IntelliJ style **3-pane merge conflict resolver** for Neovim.
 
@@ -16,7 +16,7 @@ RubyMine / IntelliJ style **3-pane merge conflict resolver** for Neovim.
 
 Like RubyMine / IntelliJ: **Left = CURRENT/Yours (`:2:`) | Middle = RESULT (editable) | Right = INCOMING/Theirs (`:3:`)** with `>>` `<<` `X` indicators and keybinds. Works for any language, not just Ruby.
 
-> **Formerly `rubymine-merge.nvim`** — renamed to `tri-merge.nvim` for language-agnostic name. Old `require("rubymine-merge")` and `:RubymineMerge` still work as aliases.
+> **Formerly `rubymine-merge.nvim`** — renamed to `mergeui.nvim` for language-agnostic name. Old `require("rubymine-merge")` and `:RubymineMerge` still work as aliases.
 
 ## Why `tri-merge` ?
 
@@ -38,9 +38,9 @@ Like RubyMine / IntelliJ: **Left = CURRENT/Yours (`:2:`) | Middle = RESULT (edit
 
 ```lua
 {
-  "yesheytenzin/tri-merge.nvim",
+  "yesheytenzin/mergeui.nvim",
   config = function()
-    require("tri-merge").setup({
+    require("mergeui").setup({
       keymaps = {
         take_left = "<leader>mh",  -- >> take CURRENT
         take_right = "<leader>ml", -- << take INCOMING
@@ -53,31 +53,31 @@ Like RubyMine / IntelliJ: **Left = CURRENT/Yours (`:2:`) | Middle = RESULT (edit
       show_indicators = true,
     })
   end,
-  cmd = { "TriMerge", "TriMergeClose" },
+  cmd = { "MergeUI", "MergeUIClose" },
 }
 ```
 
 ### Manual (no manager)
 
 ```lua
-vim.opt.rtp:prepend("/path/to/tri-merge.nvim")
-require("tri-merge").setup()
+vim.opt.rtp:prepend("/path/to/mergeui.nvim")
+require("mergeui").setup()
 ```
 
 ## Usage
 
 1. Open a file with merge conflicts (`git merge` / `git rebase` conflict)
-2. `:TriMerge` (or `:RubymineMerge` alias) — opens 3 panes
+2. `:MergeUI` (or `:RubymineMerge` alias) — opens 3 panes
 3. Cursor in middle pane:
 
 | Action | Default key | RubyMine indicator | Command |
 | -------- | ------------- | ------------------- | --------- |
-| Take **left** (CURRENT/Yours) | `<leader>mh` or `gh` | `>>` | `:TriMergeTakeLeft` |
-| Take **right** (INCOMING/Theirs) | `<leader>ml` or `gl` | `<<` | `:TriMergeTakeRight` |
-| Take **both** | `<leader>mb` or `gB` | `B` | `:TriMergeTakeBoth` |
-| **Dismiss** (X) | `<leader>mx` or `gX` | `X` | `:TriMergeTakeNone` |
+| Take **left** (CURRENT/Yours) | `<leader>mh` or `gh` | `>>` | `:MergeUITakeLeft` |
+| Take **right** (INCOMING/Theirs) | `<leader>ml` or `gl` | `<<` | `:MergeUITakeRight` |
+| Take **both** | `<leader>mb` or `gB` | `B` | `:MergeUITakeBoth` |
+| **Dismiss** (X) | `<leader>mx` or `gX` | `X` | `:MergeUITakeNone` |
 | Next / Prev conflict | `]c` / `[c` | — | — |
-| Close merge view | `<leader>mq` | — | `:TriMergeClose` |
+| Close merge view | `<leader>mq` | — | `:MergeUIClose` |
 
 Old commands `:RubymineMerge*` are aliases and still work.
 
