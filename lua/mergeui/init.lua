@@ -185,16 +185,30 @@ function M.setup(opts)
   _G.MergeUIExpandWriteQuit = M._expand_write_quit
   vim.cmd([[cnoreabbrev <expr> wq v:lua.MergeUIExpandWriteQuit()]])
 
-  -- autocmd to keep indicators fresh
+  -- keep indicators fresh only on normal-mode changes and after insert leaves (avoids per-keystroke refresh)
   local grp = vim.api.nvim_create_augroup("RubymineMerge", { clear = true })
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
+  local refresh_timer = nil
+  local function schedule_refresh(buf)
+    if refresh_timer then vim.fn.timer_stop(refresh_timer) end
+    refresh_timer = vim.fn.timer_start(120, function()
+      local st = ui.get_state()
+      if st.active and buf == st.middle_buf and vim.api.nvim_buf_is_valid(buf) then
+        ui.refresh()
+      end
+    end)
+  end
+  vim.api.nvim_create_autocmd({ "TextChanged", "BufWritePost" }, {
     group = grp,
     callback = function(ev)
       local st = ui.get_state()
-      if st.active and ev.buf == st.middle_buf then
-        -- debounce a bit
-        vim.defer_fn(function() ui.refresh() end, 50)
-      end
+      if st.active and ev.buf == st.middle_buf then schedule_refresh(ev.buf) end
+    end,
+  })
+  vim.api.nvim_create_autocmd("InsertLeave", {
+    group = grp,
+    callback = function(ev)
+      local st = ui.get_state()
+      if st.active and ev.buf == st.middle_buf then schedule_refresh(ev.buf) end
     end,
   })
   if config.options.auto_open then
