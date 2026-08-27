@@ -106,6 +106,7 @@ function M.refresh()
       pcall(vim.api.nvim_buf_set_extmark, picker_state.buf, picker_ns, row, 6, {
         end_col = 9,
         hl_group = "DiagnosticError",
+        priority = 200,
       })
     end
   end
