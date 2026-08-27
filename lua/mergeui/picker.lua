@@ -171,12 +171,23 @@ function M.open_picker()
     end)
   end
   vim.keymap.set("n", "<CR>", open_selected, opts)
-  vim.keymap.set("n", "q", function() 
-    if vim.api.nvim_win_is_valid(picker_state.win) then pcall(vim.api.nvim_win_close, picker_state.win, false) end
+  vim.keymap.set("n", "q", function()
+    if picker_state.win and vim.api.nvim_win_is_valid(picker_state.win) then
+      pcall(vim.api.nvim_win_close, picker_state.win, false)
+    elseif picker_state.buf and vim.api.nvim_buf_is_valid(picker_state.buf) then
+      -- picker was hidden (e.g., after 3-pane), just hide buffer and return to previous (netrw)
+      pcall(vim.api.nvim_buf_delete, picker_state.buf, {force=false})
+      picker_state.buf = nil
+    end
     picker_state.win=nil
   end, opts)
   vim.keymap.set("n", "r", function() M.refresh(); vim.notify("Refreshed " .. #M.get_conflict_files() .. " conflicts", vim.log.levels.INFO) end, opts)
-  vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, picker_state.win, false) end, opts)
+  vim.keymap.set("n", "<Esc>", function()
+    if picker_state.win and vim.api.nvim_win_is_valid(picker_state.win) then
+      pcall(vim.api.nvim_win_close, picker_state.win, false)
+    end
+    picker_state.win=nil
+  end, opts)
   if #files > 0 then
     -- Select the first file by default; Enter opens it.
     pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 4, 0 })
