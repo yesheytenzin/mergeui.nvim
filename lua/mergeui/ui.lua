@@ -12,6 +12,7 @@ local state = {
   right_buf = nil,
   right_win = nil,
   conflicts = {},
+  active_conflict = 1,
   active = false,
 }
 
@@ -96,6 +97,7 @@ function M.create_buffers(filepath, middle_bufnr)
 
   local conflicts = parser.parse(middle_bufnr)
   state.conflicts = conflicts
+  state.active_conflict = 1
 
   -- Left: ours, Right: theirs
   local left_lines, right_lines
@@ -221,10 +223,11 @@ function M.open_layout(middle_bufnr, filepath)
   -- nicer vertical separators
   pcall(function() vim.opt.fillchars:append({ vert = "│", verthoriz = "┤", horiz = "─", horizup = "┴", horizdown = "┬" }) end)
 
-  -- sync scroll
+  -- Keep viewport scrolling aligned. Cursor positions are intentionally independent:
+  -- the three revisions can have different line counts.
   for _, w in ipairs({ state.left_win, state.middle_win, state.right_win }) do
     vim.api.nvim_win_set_option(w, "scrollbind", true)
-    vim.api.nvim_win_set_option(w, "cursorbind", true)
+    vim.api.nvim_win_set_option(w, "cursorbind", false)
   end
   vim.cmd("syncbind")
 
@@ -263,6 +266,7 @@ function M.close()
   state.active = false
   state._closing = false
   state.conflicts = {}
+  state.active_conflict = 1
   if state.middle_win and vim.api.nvim_win_is_valid(state.middle_win) then
     vim.api.nvim_set_current_win(state.middle_win)
   end
@@ -275,6 +279,7 @@ function M.refresh()
     return
   end
   state.conflicts = parser.parse(state.middle_buf)
+  state.active_conflict = math.max(1, math.min(state.active_conflict or 1, #state.conflicts))
   if #state.conflicts == 0 then
     vim.notify("RubymineMerge: All conflicts resolved!", vim.log.levels.INFO)
     M.render_indicators()

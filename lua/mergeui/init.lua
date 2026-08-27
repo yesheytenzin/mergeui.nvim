@@ -41,17 +41,23 @@ end
 local function current_conflict_idx()
   local state = ui.get_state()
   if #state.conflicts == 0 then return nil end
-  local cursor = vim.api.nvim_win_get_cursor(state.middle_win or 0)
-  local lnum = cursor[1]
-  -- find conflict at or after cursor
-  for i, c in ipairs(state.conflicts) do
-    if lnum >= c.start and lnum <= c.finish then return i end
+
+  -- Manual movement in RESULT selects the conflict under its cursor. Side panes use
+  -- the explicit selection maintained by [c/]c, so differing revision lengths do
+  -- not select the wrong block.
+  if state.middle_win and vim.api.nvim_win_is_valid(state.middle_win)
+      and vim.api.nvim_get_current_win() == state.middle_win then
+    local lnum = vim.api.nvim_win_get_cursor(state.middle_win)[1]
+    for i, conflict in ipairs(state.conflicts) do
+      if lnum >= conflict.start and lnum <= conflict.finish then
+        state.active_conflict = i
+        return i
+      end
+    end
   end
-  -- else nearest after
-  for i, c in ipairs(state.conflicts) do
-    if c.start > lnum then return i end
-  end
-  return 1
+
+  state.active_conflict = math.max(1, math.min(state.active_conflict or 1, #state.conflicts))
+  return state.active_conflict
 end
 
 local function apply(choice)
@@ -87,13 +93,12 @@ local function apply(choice)
   vim.api.nvim_buf_set_lines(bufnr, c.start - 1, c.finish, false, replacement)
   ui.refresh()
 
-  -- move cursor to replacement area
-  local new_lnum = c.start
-  if #replacement > 0 then
-    pcall(vim.api.nvim_win_set_cursor, state.middle_win, { new_lnum, 0 })
-  else
-    pcall(vim.api.nvim_win_set_cursor, state.middle_win, { math.max(1, new_lnum), 0 })
-  end
+  -- Keep the same conflict slot selected; after removal this naturally selects
+  -- the next unresolved block. Focus stays in whichever pane invoked the action.
+  state.active_conflict = math.max(1, math.min(idx, #state.conflicts))
+  local next_conflict = state.conflicts[state.active_conflict]
+  local new_lnum = next_conflict and next_conflict.start or math.max(1, c.start)
+  pcall(vim.api.nvim_win_set_cursor, state.middle_win, { new_lnum, 0 })
 
   local labels = { left = ">> CURRENT (yours)", right = "<< INCOMING (theirs)", both = "both", none = "X dismissed" }
   vim.notify(string.format("Conflict %d: took %s", idx, labels[choice]), vim.log.levels.INFO)
@@ -101,27 +106,25 @@ end
 
 local function jump(dir)
   local state = ui.get_state()
-  if #state.conflicts == 0 then
+  local count = #state.conflicts
+  if count == 0 then
     vim.notify("No conflicts", vim.log.levels.INFO)
     return
   end
-  local cur = vim.api.nvim_win_get_cursor(state.middle_win)[1]
-  local target
+
+  local idx = current_conflict_idx() or 1
   if dir == "next" then
-    for _, c in ipairs(state.conflicts) do
-      if c.start > cur then target = c.start break end
-    end
-    if not target then target = state.conflicts[1].start end
+    idx = (idx % count) + 1
   else
-    for i = #state.conflicts, 1, -1 do
-      local c = state.conflicts[i]
-      if c.start < cur then target = c.start break end
-    end
-    if not target then target = state.conflicts[#state.conflicts].start end
+    idx = ((idx - 2) % count) + 1
   end
+  state.active_conflict = idx
+
+  local target = state.conflicts[idx].start
   pcall(vim.api.nvim_win_set_cursor, state.middle_win, { target, 0 })
-  vim.api.nvim_set_current_win(state.middle_win)
-  vim.cmd("normal! zz")
+  if state.middle_win and vim.api.nvim_win_is_valid(state.middle_win) then
+    vim.api.nvim_win_call(state.middle_win, function() vim.cmd("normal! zz") end)
+  end
 end
 
 function M.setup(opts)
@@ -234,33 +237,41 @@ function M.open(bufnr)
 
   ui.open_layout(bufnr, filepath)
 
-  -- set buffer-local keymaps on MIDDLE (Result) like RubyMine's >> << X
+  -- Install identical actions in all three panes. This prevents global mappings
+  -- (notably gl diagnostics) from taking over when CURRENT/INCOMING has focus.
   local km = config.options.keymaps
-  local opts = { buffer = bufnr, silent = true, noremap = true }
-  -- >> take left (CURRENT)
-  vim.keymap.set("n", km.take_left, function() apply("left") end, vim.tbl_extend("force", opts, { desc = "Merge: take CURRENT >> (left)" }))
-  vim.keymap.set("n", km.take_right, function() apply("right") end, vim.tbl_extend("force", opts, { desc = "Merge: take INCOMING << (right)" }))
-  vim.keymap.set("n", km.take_both, function() apply("both") end, vim.tbl_extend("force", opts, { desc = "Merge: take BOTH" }))
-  vim.keymap.set("n", km.take_none, function() apply("none") end, vim.tbl_extend("force", opts, { desc = "Merge: dismiss X" }))
-  vim.keymap.set("n", km.next_conflict, function() jump("next") end, vim.tbl_extend("force", opts, { desc = "Next conflict" }))
-  vim.keymap.set("n", km.prev_conflict, function() jump("prev") end, vim.tbl_extend("force", opts, { desc = "Prev conflict" }))
-  vim.keymap.set("n", km.quit, function() ui.close() end, vim.tbl_extend("force", opts, { desc = "Close merge view" }))
+  local function set_merge_keymaps(target_buf)
+    local opts = { buffer = target_buf, silent = true, noremap = true }
+    local function map(lhs, rhs, desc)
+      vim.keymap.set("n", lhs, rhs, vim.tbl_extend("force", opts, { desc = desc }))
+    end
 
-  -- also allow clicking indicators via extra keys: gl, gh for familiarity
-  vim.keymap.set("n", "gh", function() apply("left") end, vim.tbl_extend("force", opts, { desc = "Merge: gh take left >>" }))
-  vim.keymap.set("n", "gl", function() apply("right") end, vim.tbl_extend("force", opts, { desc = "Merge: gl take right <<" }))
-  vim.keymap.set("n", "gB", function() apply("both") end, vim.tbl_extend("force", opts, { desc = "Merge: take both" }))
-  vim.keymap.set("n", "gX", function() apply("none") end, vim.tbl_extend("force", opts, { desc = "Merge: dismiss" }))
+    map(km.take_left, function() apply("left") end, "Merge: take CURRENT >>")
+    map(km.take_right, function() apply("right") end, "Merge: take INCOMING <<")
+    map(km.take_both, function() apply("both") end, "Merge: take both")
+    map(km.take_none, function() apply("none") end, "Merge: discard conflict")
+    map(km.next_conflict, function() jump("next") end, "Merge: next conflict")
+    map(km.prev_conflict, function() jump("prev") end, "Merge: previous conflict")
+    map(km.quit, function() ui.close() end, "Merge: close view")
+    map("gh", function() apply("left") end, "Merge: take CURRENT >>")
+    map("gl", function() apply("right") end, "Merge: take INCOMING <<")
+    map("gB", function() apply("both") end, "Merge: take both")
+    map("gX", function() apply("none") end, "Merge: discard conflict")
+  end
 
-  -- also map >> and << as 2-char sequences if user wants RubyMine click feel
-  -- we keep leader maps as primary to not clash with shift operators in visual mode
+  local merge_state = ui.get_state()
+  for _, target_buf in ipairs({ merge_state.left_buf, merge_state.middle_buf, merge_state.right_buf }) do
+    if target_buf and vim.api.nvim_buf_is_valid(target_buf) then
+      set_merge_keymaps(target_buf)
+    end
+  end
 
-  -- mouse: clicking virtual text not natively clickable, but we can make <LeftMouse> check position
-  -- simple: clicking in middle near conflict will not auto-apply; user uses keybind
-
-  jump("next") -- jump to first conflict
-  -- center view
-  pcall(function() vim.api.nvim_set_current_win(ui.get_state().middle_win) end)
+  merge_state.active_conflict = 1
+  if merge_state.conflicts[1] then
+    pcall(vim.api.nvim_win_set_cursor, merge_state.middle_win, { merge_state.conflicts[1].start, 0 })
+    vim.api.nvim_win_call(merge_state.middle_win, function() vim.cmd("normal! zz") end)
+  end
+  pcall(function() vim.api.nvim_set_current_win(merge_state.middle_win) end)
 
   -- :w writes RESULT and keeps the panes open. Active-session :wq is expanded
   -- to :MergeUIWriteQuit, which writes, closes all three, and restores the list.
