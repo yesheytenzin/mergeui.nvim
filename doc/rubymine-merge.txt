@@ -1,0 +1,97 @@
+*rubymine-merge.txt*  RubyMine-style 3-pane merge for Neovim
+
+Author: rubymine-merge.nvim
+License: MIT
+
+==============================================================================
+CONTENTS                                                    *rubymine-merge*
+
+  1. Intro ......................... |rubymine-merge-intro|
+  2. Commands ...................... |rubymine-merge-commands|
+  3. Keymaps / Indicators .......... |rubymine-merge-keymaps|
+  4. Setup ......................... |rubymine-merge-setup|
+  5. Highlights .................... |rubymine-merge-highlights|
+
+==============================================================================
+1. INTRO                                        *rubymine-merge-intro*
+
+  RubyMine / IntelliJ style 3-way merge:
+
+    ┌──────────────┬──────────────┬──────────────┐
+    │ CURRENT      │ RESULT       │ INCOMING     │
+    │ (Yours :2:)  │ (editable)   │ (Theirs :3:) │
+    │  >>          │ >> << X  B   │  <<          │
+    └──────────────┴──────────────┴──────────────┘
+
+  Left  = CURRENT/Yours (HEAD, :2:) — read-only,  >> to apply
+  Middle= RESULT — editable file you will commit, << >> X B actions
+  Right = INCOMING/Theirs (MERGE_HEAD, :3:) — read-only, << to apply
+
+  Indicators `>>` `<<` `X` `B` are shown as virtual text on each conflict,
+  matching RubyMine's gutter buttons. All actions also have keybinds.
+
+==============================================================================
+2. COMMANDS                                  *rubymine-merge-commands*
+
+  :RubymineMerge                Open 3-pane view if buffer has conflicts.
+                               Tries git show :2:/:3: else parses markers.
+
+  :RubymineMergeClose           Close left/right panes, keep middle.
+
+  :RubymineMergeTakeLeft        Take CURRENT (>>)
+  :RubymineMergeTakeRight       Take INCOMING (<<)
+  :RubymineMergeTakeBoth        Take both sides (ours + theirs)
+  :RubymineMergeTakeNone        Dismiss conflict (X) — keep neither
+
+==============================================================================
+3. KEYMAPS / INDICATORS                      *rubymine-merge-keymaps*
+
+  Default (set on middle buffer when merge is active):
+
+    <leader>mh  / gh     Take left  (>>)  — CURRENT/Yours
+    <leader>ml  / gl     Take right (<<)  — INCOMING/Theirs
+    <leader>mb  / gB     Take both  (B)
+    <leader>mx  / gX     Dismiss    (X)
+    ]c                   Next conflict
+    [c                   Prev conflict
+    <leader>mq           Quit merge view
+
+  Virtual text on `<<<<<<<` line shows:
+    `  >> take left | << take right | X dismiss | B both`
+
+  Customize via setup({ keymaps = { ... } })
+
+==============================================================================
+4. SETUP                                        *rubymine-merge-setup*
+
+  require("rubymine-merge").setup({
+    keymaps = {
+      take_left = "<leader>mh",
+      take_right = "<leader>ml",
+      take_both = "<leader>mb",
+      take_none = "<leader>mx",
+      next_conflict = "]c",
+      prev_conflict = "[c",
+      quit = "<leader>mq",
+    },
+    show_indicators = true,
+    auto_open = false,
+  })
+
+==============================================================================
+5. HIGHLIGHTS                            *rubymine-merge-highlights*
+
+  RubymineConflict         Conflict region in middle (bg #553333)
+  RubymineIndicator        >>  (left)  — links to DiffAdd
+  RubymineIndicatorRight   <<  (right) — links to DiffChange
+  RubymineIndicatorX       X   (dismiss) — red
+  RubymineCurrent          Left window Normal
+  RubymineIncoming         Right window Normal
+  RubymineResult           Middle window Normal
+
+  Override: >lua
+    vim.api.nvim_set_hl(0, "RubymineConflict", { bg = "#3a1a1a" })
+<
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
