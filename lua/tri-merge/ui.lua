@@ -26,6 +26,8 @@ local function ensure_hl()
   vim.api.nvim_set_hl(0, "RubymineIndicator", { fg = "#89b4fa", bg = "#1e1e2e", bold = true, default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { fg = "#a6e3a1", bg = "#1e1e2e", bold = true, default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorX", { fg = "#f38ba8", bg = "#1e1e2e", bold = true, default = true })
+  vim.api.nvim_set_hl(0, "RubymineArrow", { fg = "#7aa2f7", bold = true, default = true })
+  vim.api.nvim_set_hl(0, "RubymineArrowRight", { fg = "#7dcfff", bold = true, default = true })
 end
 
 function M.clear_indicators(bufnr)
@@ -43,14 +45,16 @@ function M.render_indicators()
   end
 
   for idx, c in ipairs(state.conflicts) do
-    -- Middle: show action bar at start line
+    -- Middle: show action bar at start line with arrows pointing both ways
     if state.middle_buf and vim.api.nvim_buf_is_valid(state.middle_buf) then
       local virt = {
         { string.format("  Conflict %d/%d  ", idx, #state.conflicts), "RubymineConflict" },
-        { "  >> ", "RubymineIndicator" },
-        { "take left ", "Comment" },
-        { " << ", "RubymineIndicatorRight" },
-        { "take right ", "Comment" },
+        { "  ◄◄ << ", "RubymineIndicatorRight" },
+        { "take incoming ", "Comment" },
+        { "  │  ", "RubymineArrow" },
+        { "  >> ►► ", "RubymineIndicator" },
+        { "take current ", "Comment" },
+        { "  │  ", "RubymineArrow" },
         { "  X ", "RubymineIndicatorX" },
         { "dismiss ", "Comment" },
         { "  B ", "RubymineIndicator" },
@@ -67,23 +71,53 @@ function M.render_indicators()
         hl_group = "RubymineConflict",
         hl_eol = true,
       })
-      -- sign-like indicators in gutter via virt_text on line
     end
-
-    -- Left buf: show >> at ours lines
-    if state.left_buf and vim.api.nvim_buf_is_valid(state.left_buf) then
-      -- Find corresponding offset in left buffer: we build left buffer separately,
-      -- so just mark whole buffer header if needed, else use middle coords as hint
-      pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, 0, 0, {
-        virt_text = { { "  CURRENT (yours) — press >> to apply to center  ", "RubymineIndicator" } },
-        virt_text_pos = "overlay",
-      })
+  end
+  -- Side buffers: ONE header per buffer with big pipeline arrow TO MIDDLE (outside loop so not duplicated)
+  if state.left_buf and vim.api.nvim_buf_is_valid(state.left_buf) then
+    pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, 0, 0, {
+      virt_text = {
+        { " CURRENT ", "RubymineIndicator" },
+        { " ──────►► ", "RubymineArrow" },
+        { " >> ", "RubymineIndicator" },
+        { "to RESULT ──► ", "Comment" },
+      },
+      virt_text_pos = "eol",
+      hl_mode = "combine",
+    })
+    -- also put ──>> at end of every line that is part of a conflict’s ours side (fallback mapping)
+    -- we approximate by marking the line count of left buffer’s changed block if we have fallback
+    if #state.conflicts > 0 then
+      local left_lines = vim.api.nvim_buf_line_count(state.left_buf)
+      for i = 0, math.min(left_lines - 1, 40) do
+        pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, i, 0, {
+          virt_text = { { " ──>> ", "RubymineArrow" } },
+          virt_text_pos = "eol",
+          hl_mode = "combine",
+        })
+      end
     end
-    if state.right_buf and vim.api.nvim_buf_is_valid(state.right_buf) then
-      pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, 0, 0, {
-        virt_text = { { "  INCOMING (theirs) — press << to apply to center  ", "RubymineIndicatorRight" } },
-        virt_text_pos = "overlay",
-      })
+  end
+  if state.right_buf and vim.api.nvim_buf_is_valid(state.right_buf) then
+    pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, 0, 0, {
+      virt_text = {
+        { " ◄── ", "RubymineArrowRight" },
+        { " << ", "RubymineIndicatorRight" },
+        { " ◄◄────── ", "RubymineArrowRight" },
+        { " INCOMING ", "RubymineIndicatorRight" },
+      },
+      virt_text_pos = "inline",
+      hl_mode = "combine",
+    })
+    if #state.conflicts > 0 then
+      local right_lines = vim.api.nvim_buf_line_count(state.right_buf)
+      for i = 0, math.min(right_lines - 1, 40) do
+        pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, i, 0, {
+          virt_text = { { " <<── ", "RubymineArrowRight" } },
+          virt_text_pos = "inline",
+          hl_mode = "combine",
+        })
+      end
     end
   end
 end
@@ -183,12 +217,17 @@ function M.open_layout(middle_bufnr, filepath)
   vim.wo[state.middle_win].winfixwidth = false
   vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult")
 
-  -- titles
+  -- titles + winbar with big pipeline arrows TO MIDDLE (like RubyMine gutters)
   pcall(function()
-    vim.api.nvim_win_set_option(state.left_win, "statusline", "  %f  [CURRENT/Yours]  >> ")
-    vim.api.nvim_win_set_option(state.middle_win, "statusline", "  %f  [RESULT - editable]  << >> X ")
-    vim.api.nvim_win_set_option(state.right_win, "statusline", "  %f  [INCOMING/Theirs]  << ")
+    vim.api.nvim_win_set_option(state.left_win, "statusline", "  %f  [CURRENT/Yours]  ──►► >> to RESULT ──► ")
+    vim.api.nvim_win_set_option(state.middle_win, "statusline", "  ◄─<< %f [RESULT ● editable] >>─► ")
+    vim.api.nvim_win_set_option(state.right_win, "statusline", "  ◄─<< [INCOMING/Theirs] ◄── %f ")
+    vim.wo[state.left_win].winbar = " CURRENT ──────►►►  >> to MIDDLE "
+    vim.wo[state.middle_win].winbar = " ◄◄◄ RESULT (editable) ── << / >> / X "
+    vim.wo[state.right_win].winbar = " << to MIDDLE ◄◄◄────── INCOMING "
   end)
+  -- nicer vertical separators
+  pcall(function() vim.opt.fillchars:append({ vert = "│", verthoriz = "┤", horiz = "─", horizup = "┴", horizdown = "┬" }) end)
 
   -- sync scroll
   for _, w in ipairs({ state.left_win, state.middle_win, state.right_win }) do
