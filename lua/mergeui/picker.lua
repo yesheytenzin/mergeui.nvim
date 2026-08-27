@@ -89,7 +89,7 @@ function M.refresh()
     local noun = #files == 1 and "file" or "files"
     local lines = {
       string.format("  MERGE CONFLICTS                                      %d %s", #files, noun),
-      "  Select a file with j/k — the merge view opens automatically",
+      "  Select with j/k, then press Enter to open the merge view",
       "",
     }
     for i, f in ipairs(files) do
@@ -140,7 +140,7 @@ function M.open_picker()
   vim.wo[picker_state.win].winbar = " MERGEUI  │  Conflicts List "
   -- refresh content
   files = M.refresh()
-  -- Keyboard selection opens automatically; Enter remains an explicit fallback.
+  -- Navigate normally; Enter opens the selected conflict.
   local opts = { buffer=picker_state.buf, silent=true, noremap=true }
   local function open_selected()
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
@@ -171,14 +171,6 @@ function M.open_picker()
     end)
   end
   vim.keymap.set("n", "<CR>", open_selected, opts)
-  local function move_and_open(key)
-    vim.cmd("normal! " .. key)
-    vim.schedule(open_selected)
-  end
-  vim.keymap.set("n", "j", function() move_and_open("j") end, opts)
-  vim.keymap.set("n", "k", function() move_and_open("k") end, opts)
-  vim.keymap.set("n", "<Down>", function() move_and_open("j") end, opts)
-  vim.keymap.set("n", "<Up>", function() move_and_open("k") end, opts)
   vim.keymap.set("n", "q", function() 
     if vim.api.nvim_win_is_valid(picker_state.win) then pcall(vim.api.nvim_win_close, picker_state.win, false) end
     picker_state.win=nil
@@ -186,8 +178,8 @@ function M.open_picker()
   vim.keymap.set("n", "r", function() M.refresh(); vim.notify("Refreshed " .. #M.get_conflict_files() .. " conflicts", vim.log.levels.INFO) end, opts)
   vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, picker_state.win, false) end, opts)
   if #files > 0 then
-    -- Park immediately above the first file. One j selects it and opens MergeUI.
-    pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 3, 0 })
+    -- Select the first file by default; Enter opens it.
+    pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 4, 0 })
   end
   vim.notify(string.format("MergeUI: %d unresolved file(s)", #files), vim.log.levels.INFO)
   return files
