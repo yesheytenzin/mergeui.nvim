@@ -91,18 +91,22 @@ local function jump(dir)
 end
 
 function M.setup(opts)
-  if vim.g.rubymine_merge_setup_done == 1 then return end
+  if vim.g.tri_merge_setup_done == 1 and vim.g.rubymine_merge_setup_done == 1 then return end
+  vim.g.tri_merge_setup_done = 1
   vim.g.rubymine_merge_setup_done = 1
   config.setup(opts)
   local km = config.options.keymaps
 
   -- create user commands (pcall to avoid duplicate when plugin/ already created them)
-  pcall(vim.api.nvim_create_user_command, "RubymineMerge", function() M.open() end, { desc = "Open RubyMine-style 3-pane merge (CURRENT | RESULT | INCOMING)" })
-  pcall(vim.api.nvim_create_user_command, "RubymineMergeClose", function() ui.close() end, { desc = "Close merge view" })
-  pcall(vim.api.nvim_create_user_command, "RubymineMergeTakeLeft", function() apply("left") end, { desc = "Take CURRENT/Yours (>>)" })
-  pcall(vim.api.nvim_create_user_command, "RubymineMergeTakeRight", function() apply("right") end, { desc = "Take INCOMING/Theirs (<<)" })
-  pcall(vim.api.nvim_create_user_command, "RubymineMergeTakeBoth", function() apply("both") end, { desc = "Take both" })
-  pcall(vim.api.nvim_create_user_command, "RubymineMergeTakeNone", function() apply("none") end, { desc = "Dismiss conflict (X)" })
+  -- Primary: TriMerge* (new name) + Alias: RubymineMerge* (back-compat)
+  for _, prefix in ipairs({ "TriMerge", "RubymineMerge" }) do
+    pcall(vim.api.nvim_create_user_command, prefix, function() M.open() end, { desc = "Open RubyMine-style 3-pane merge (CURRENT | RESULT | INCOMING)" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "Close", function() ui.close() end, { desc = "Close merge view" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "TakeLeft", function() apply("left") end, { desc = "Take CURRENT/Yours (>>)" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "TakeRight", function() apply("right") end, { desc = "Take INCOMING/Theirs (<<)" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "TakeBoth", function() apply("both") end, { desc = "Take both" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "TakeNone", function() apply("none") end, { desc = "Dismiss conflict (X)" })
+  end
 
   -- autocmd to keep indicators fresh
   local grp = vim.api.nvim_create_augroup("RubymineMerge", { clear = true })
