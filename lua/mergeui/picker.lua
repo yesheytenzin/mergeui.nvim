@@ -133,6 +133,7 @@ function M.open_picker()
   picker_state.win = vim.api.nvim_get_current_win()
   vim.bo[picker_state.buf].buftype = "nofile"
   vim.bo[picker_state.buf].bufhidden = "hide"
+  vim.bo[picker_state.buf].swapfile = false
   vim.bo[picker_state.buf].filetype = "mergeui-picker"
   vim.bo[picker_state.buf].modifiable = false
   vim.wo[picker_state.win].cursorline = true
