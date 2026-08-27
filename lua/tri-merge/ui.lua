@@ -18,16 +18,20 @@ local state = {
 function M.get_state() return state end
 
 local function ensure_hl()
-  -- Define RubyMine-like highlights if not set
-  vim.api.nvim_set_hl(0, "RubymineCurrent", { link = "DiffAdd", default = true })
-  vim.api.nvim_set_hl(0, "RubymineIncoming", { link = "DiffChange", default = true })
-  vim.api.nvim_set_hl(0, "RubymineResult", { link = "Normal", default = true })
-  vim.api.nvim_set_hl(0, "RubymineConflict", { bg = "#553333", fg = "#ffcccc", default = false })
-  vim.api.nvim_set_hl(0, "RubymineIndicator", { fg = "#89b4fa", bg = "#1e1e2e", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { fg = "#a6e3a1", bg = "#1e1e2e", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineIndicatorX", { fg = "#f38ba8", bg = "#1e1e2e", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineArrow", { fg = "#7aa2f7", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineArrowRight", { fg = "#7dcfff", bold = true, default = true })
+  -- Exact RubyMine Darcula 3-way colors
+  vim.api.nvim_set_hl(0, "RubymineCurrent", { bg = "#2e3440", fg = "#d8dee9", default = true }) -- left pane base
+  vim.api.nvim_set_hl(0, "RubymineIncoming", { bg = "#2e3440", fg = "#d8dee9", default = true }) -- right pane base
+  vim.api.nvim_set_hl(0, "RubymineResult", { bg = "#3b4252", fg = "#eceff4", default = true }) -- center pane active
+  vim.api.nvim_set_hl(0, "RubymineConflict", { bg = "#4a2a2a", fg = "#ffcccc", default = false }) -- ruby red conflict block like RubyMine
+  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#3a4a6a", fg = "#88c0d0", default = true }) -- blue left diff
+  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#3a4a3a", fg = "#a3be8c", default = true }) -- green right diff
+  vim.api.nvim_set_hl(0, "RubymineIndicator", { fg = "#88c0d0", bg = "#3b4252", bold = true, default = true }) -- >> blue
+  vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { fg = "#a3be8c", bg = "#3b4252", bold = true, default = true }) -- << green
+  vim.api.nvim_set_hl(0, "RubymineIndicatorX", { fg = "#bf616a", bg = "#3b4252", bold = true, default = true }) -- X red
+  vim.api.nvim_set_hl(0, "RubymineArrow", { fg = "#81a1c1", bold = true, default = true })
+  vim.api.nvim_set_hl(0, "RubymineArrowRight", { fg = "#a3be8c", bold = true, default = true })
+  vim.api.nvim_set_hl(0, "RubymineWinbar", { bg = "#434c5e", fg = "#eceff4", bold = true, default = true })
+  vim.api.nvim_set_hl(0, "RubymineWinbarNC", { bg = "#3b4252", fg = "#88c0d0", default = true })
 end
 
 function M.clear_indicators(bufnr)
@@ -45,30 +49,54 @@ function M.render_indicators()
   end
 
   for idx, c in ipairs(state.conflicts) do
-    -- Middle: show action bar at start line with arrows pointing both ways
+    -- Middle: RubyMine gutter exactly: header + 3 clickable icons in signcolumn + virt_text
     if state.middle_buf and vim.api.nvim_buf_is_valid(state.middle_buf) then
       local virt = {
         { string.format("  Conflict %d/%d  ", idx, #state.conflicts), "RubymineConflict" },
-        { "  ◄◄ << ", "RubymineIndicatorRight" },
-        { "take incoming ", "Comment" },
-        { "  │  ", "RubymineArrow" },
-        { "  >> ►► ", "RubymineIndicator" },
-        { "take current ", "Comment" },
-        { "  │  ", "RubymineArrow" },
-        { "  X ", "RubymineIndicatorX" },
-        { "dismiss ", "Comment" },
+        { "  ", "Comment" },
+        { " >> ", "RubymineIndicator" }, -- RubyMine blue chevron (Yours -> Result)
+        { " ", "Comment" },
+        { " X ", "RubymineIndicatorX" }, -- RubyMine red X
+        { " ", "Comment" },
+        { " << ", "RubymineIndicatorRight" }, -- RubyMine green chevron (Theirs -> Result)
         { "  B ", "RubymineIndicator" },
-        { "both ", "Comment" },
       }
       pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.start - 1, 0, {
         virt_text = virt,
         virt_text_pos = "eol",
         hl_mode = "combine",
       })
-      -- highlight conflict region
+      -- RubyMine signcolumn gutters: >> on left edge, X in middle, << on right edge (like IDE)
+      pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.start - 1, 0, {
+        sign_text = ">>",
+        sign_hl_group = "RubymineIndicator",
+        priority = 100,
+      })
+      pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.mid - 1, 0, {
+        sign_text = " X",
+        sign_hl_group = "RubymineIndicatorX",
+        priority = 100,
+      })
+      pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.finish - 1, 0, {
+        sign_text = "<<",
+        sign_hl_group = "RubymineIndicatorRight",
+        priority = 100,
+      })
+      -- highlight conflict region exactly like RubyMine red block
       pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.start - 1, 0, {
         end_row = c.finish,
         hl_group = "RubymineConflict",
+        hl_eol = true,
+      })
+      -- line highlights: ours=blue, theirs=green like RubyMine
+      pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.start - 1, 0, {
+        end_row = c.mid,
+        hl_group = "RubymineCurrentLine",
+        hl_eol = true,
+      })
+      pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.mid - 1, 0, {
+        end_row = c.finish,
+        hl_group = "RubymineIncomingLine",
         hl_eol = true,
       })
     end
@@ -77,48 +105,35 @@ function M.render_indicators()
   if state.left_buf and vim.api.nvim_buf_is_valid(state.left_buf) then
     pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, 0, 0, {
       virt_text = {
-        { " CURRENT ", "RubymineIndicator" },
+        { "  CURRENT ", "RubymineIndicator" },
         { " ──────►► ", "RubymineArrow" },
-        { " >> ", "RubymineIndicator" },
-        { "to RESULT ──► ", "Comment" },
+        { ">>", "RubymineIndicator" },
+        { " ──► Result ", "Comment" },
       },
       virt_text_pos = "eol",
       hl_mode = "combine",
     })
-    -- also put ──>> at end of every line that is part of a conflict’s ours side (fallback mapping)
-    -- we approximate by marking the line count of left buffer’s changed block if we have fallback
-    if #state.conflicts > 0 then
-      local left_lines = vim.api.nvim_buf_line_count(state.left_buf)
-      for i = 0, math.min(left_lines - 1, 40) do
-        pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, i, 0, {
-          virt_text = { { " ──>> ", "RubymineArrow" } },
-          virt_text_pos = "eol",
-          hl_mode = "combine",
-        })
-      end
-    end
+    -- RubyMine gutter: single >> chevron in signcolumn per window (not spammed every line)
+    pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, 0, 0, {
+      sign_text = ">>",
+      sign_hl_group = "RubymineIndicator",
+    })
   end
   if state.right_buf and vim.api.nvim_buf_is_valid(state.right_buf) then
     pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, 0, 0, {
       virt_text = {
-        { " ◄── ", "RubymineArrowRight" },
-        { " << ", "RubymineIndicatorRight" },
+        { " Result ◄── ", "Comment" },
+        { "<<", "RubymineIndicatorRight" },
         { " ◄◄────── ", "RubymineArrowRight" },
-        { " INCOMING ", "RubymineIndicatorRight" },
+        { "INCOMING  ", "RubymineIndicatorRight" },
       },
-      virt_text_pos = "inline",
+      virt_text_pos = "eol",
       hl_mode = "combine",
     })
-    if #state.conflicts > 0 then
-      local right_lines = vim.api.nvim_buf_line_count(state.right_buf)
-      for i = 0, math.min(right_lines - 1, 40) do
-        pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, i, 0, {
-          virt_text = { { " <<── ", "RubymineArrowRight" } },
-          virt_text_pos = "inline",
-          hl_mode = "combine",
-        })
-      end
-    end
+    pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, 0, 0, {
+      sign_text = "<<",
+      sign_hl_group = "RubymineIndicatorRight",
+    })
   end
 end
 
@@ -217,14 +232,21 @@ function M.open_layout(middle_bufnr, filepath)
   vim.wo[state.middle_win].winfixwidth = false
   vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult")
 
-  -- titles + winbar with big pipeline arrows TO MIDDLE (like RubyMine gutters)
+  -- titles + winbar 1:1 RubyMine header (branch names) + pipeline arrows
   pcall(function()
-    vim.api.nvim_win_set_option(state.left_win, "statusline", "  %f  [CURRENT/Yours]  ──►► >> to RESULT ──► ")
-    vim.api.nvim_win_set_option(state.middle_win, "statusline", "  ◄─<< %f [RESULT ● editable] >>─► ")
-    vim.api.nvim_win_set_option(state.right_win, "statusline", "  ◄─<< [INCOMING/Theirs] ◄── %f ")
-    vim.wo[state.left_win].winbar = " CURRENT ──────►►►  >> to MIDDLE "
-    vim.wo[state.middle_win].winbar = " ◄◄◄ RESULT (editable) ── << / >> / X "
-    vim.wo[state.right_win].winbar = " << to MIDDLE ◄◄◄────── INCOMING "
+    -- RubyMine header: Left=Yours:HEAD, Center=Result, Right=Theirs:MERGE_HEAD (like IDE tabs)
+    local left_title = "  Yours  [HEAD]  ──►►  >> "
+    local mid_title = "  Result  ──  <<  X  >> "
+    local right_title = "  <<  ──►►  Theirs  [MERGE_HEAD]  "
+    vim.api.nvim_win_set_option(state.left_win, "statusline", " " .. vim.fn.fnamemodify(filepath, ":t") .. left_title)
+    vim.api.nvim_win_set_option(state.middle_win, "statusline", " " .. vim.fn.fnamemodify(filepath, ":t") .. mid_title .. " ● editable ")
+    vim.api.nvim_win_set_option(state.right_win, "statusline", right_title .. vim.fn.fnamemodify(filepath, ":t") .. " ")
+    vim.wo[state.left_win].winbar = " %t │ Yours:HEAD ──────►►►  [>>] "
+    vim.wo[state.middle_win].winbar = " %t │ Result  ◄ [<<]  [X]  [>>] ► "
+    vim.wo[state.right_win].winbar = " [<<]  ◄◄◄────── Theirs:MERGE_HEAD │ %t "
+    vim.wo[state.left_win].winhl = "WinBar:RubymineWinbarNC,WinBarNC:RubymineWinbarNC"
+    vim.wo[state.middle_win].winhl = "WinBar:RubymineWinbar,WinBarNC:RubymineWinbar"
+    vim.wo[state.right_win].winhl = "WinBar:RubymineWinbarNC,WinBarNC:RubymineWinbarNC"
   end)
   -- nicer vertical separators
   pcall(function() vim.opt.fillchars:append({ vert = "│", verthoriz = "┤", horiz = "─", horizup = "┴", horizdown = "┬" }) end)
