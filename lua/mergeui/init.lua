@@ -358,9 +358,10 @@ function M.open(bufnr)
     buffer = bufnr,
     callback = function()
       vim.schedule(function()
-        -- if file no longer has markers after write, refresh picker (so :wq list is filtered)
-        if not parser.has_conflicts(bufnr) and M._picker_return and vim.api.nvim_buf_is_valid(M._picker_return) then
-          picker.refresh()
+        if not vim.api.nvim_buf_is_valid(bufnr) then return end
+        local ok, has = pcall(parser.has_conflicts, bufnr)
+        if ok and not has and M._picker_return and vim.api.nvim_buf_is_valid(M._picker_return) then
+          pcall(picker.refresh)
         end
       end)
     end,

@@ -4,6 +4,7 @@ local M = {}
 -- Returns list of { start = lnum, mid = lnum, finish = lnum, ours = {}, theirs = {} }
 function M.parse(bufnr)
   bufnr = bufnr or 0
+  if not vim.api.nvim_buf_is_valid(bufnr) then return {} end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local conflicts = {}
   local i = 1
