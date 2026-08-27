@@ -89,7 +89,6 @@ function M.refresh()
     local noun = #files == 1 and "file" or "files"
     local lines = {
       string.format("  MERGE CONFLICTS                                      %d %s", #files, noun),
-      "  Select with j/k, then press Enter to open the merge view",
       "",
     }
     for i, f in ipairs(files) do
