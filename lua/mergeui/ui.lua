@@ -281,7 +281,6 @@ function M.open_layout(middle_bufnr, filepath)
   M.render_indicators()
 
   -- keymaps are set in init.lua
-  vim.notify(string.format("MergeUI: %d conflicts · gh current · gl incoming · gB both · gX discard", #state.conflicts), vim.log.levels.INFO)
 end
 
 function M.close()
