@@ -1,6 +1,7 @@
 local config = require("mergeui.config")
 local parser = require("mergeui.parser")
 local ui = require("mergeui.ui")
+local picker = require("mergeui.picker")
 
 local M = {}
 
@@ -99,10 +100,43 @@ function M.setup(opts)
   local km = config.options.keymaps
 
   -- create user commands (pcall to avoid duplicate when plugin/ already created them)
-  -- Primary: TriMerge* (new name) + Alias: RubymineMerge* (back-compat)
+  -- Primary: MergeUI + Alias: TriMerge/RubymineMerge ; :MergeUI [file] -> picker list, <file> -> direct 3-pane
   for _, prefix in ipairs({ "MergeUI", "TriMerge", "RubymineMerge" }) do
-    pcall(vim.api.nvim_create_user_command, prefix, function() M.open() end, { desc = "Open RubyMine-style 3-pane merge (CURRENT | RESULT | INCOMING)" })
-    pcall(vim.api.nvim_create_user_command, prefix .. "Close", function() ui.close() end, { desc = "Close merge view" })
+    pcall(vim.api.nvim_create_user_command, prefix, function(opts)
+      if opts.args and opts.args ~= "" then
+        local f = vim.trim(opts.args)
+        if vim.fn.filereadable(f)==0 then
+          -- try git root relative
+          local out = vim.system({"git","rev-parse","--show-toplevel"}, {text=true}):wait()
+          if out.code==0 then
+            local cand = vim.trim(out.stdout) .. "/" .. f
+            if vim.fn.filereadable(cand)==1 then f=cand end
+          end
+        end
+        vim.cmd("edit " .. vim.fn.fnameescape(f))
+        vim.schedule(function() M.open(vim.api.nvim_get_current_buf()) end)
+      else
+        -- no arg: open conflist picker (like :G mergetool list)
+        picker.open_picker()
+      end
+    end, { desc = "Open MergeUI picker or 3-pane ( :MergeUI [file] )", nargs="?", complete="file" })
+    -- picker list command
+    pcall(vim.api.nvim_create_user_command, prefix .. "List", function() picker.open_picker() end, { desc = "MergeUI: list conflict files" })
+    pcall(vim.api.nvim_create_user_command, prefix .. "Close", function() 
+      ui.close() 
+      -- after close, return to picker filtered to remaining
+      vim.schedule(function()
+        local st = picker.get_state()
+        if st.buf and vim.api.nvim_buf_is_valid(st.buf) then
+          local files = picker.refresh()
+          if #files>0 then
+            -- ensure picker visible if not already
+            local wins = vim.fn.win_findbuf(st.buf)
+            if not wins or #wins==0 then picker.open_picker() end
+          end
+        end
+      end)
+    end, { desc = "Close merge view" })
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeLeft", function() apply("left") end, { desc = "Take CURRENT/Yours (>>)" })
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeRight", function() apply("right") end, { desc = "Take INCOMING/Theirs (<<)" })
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeBoth", function() apply("both") end, { desc = "Take both" })
@@ -141,8 +175,13 @@ function M.open(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   if not parser.has_conflicts(bufnr) then
     vim.notify("No merge conflicts in this file", vim.log.levels.WARN)
+    -- even if no markers, try picker
+    if #picker.get_conflict_files()>0 then picker.open_picker() end
     return
   end
+  -- remember picker to return to after :wq/:q
+  M._picker_return = picker.get_state().buf and vim.api.nvim_buf_is_valid(picker.get_state().buf) and picker.get_state().buf or nil
+
   local filepath = vim.api.nvim_buf_get_name(bufnr)
   if filepath == "" then filepath = vim.fn.expand("%:p") end
 
@@ -231,8 +270,35 @@ function M.open(bufnr)
       if st.active and (ev.buf == st.left_buf or ev.buf == st.right_buf or ev.buf == st.middle_buf) then
         vim.schedule(function()
           if st.active then pcall(ui.close) end
+          -- return to picker filtered (only remaining)
+          vim.schedule(function()
+            local pb = M._picker_return or (picker.get_state().buf and picker.get_state().buf or nil)
+            if pb and vim.api.nvim_buf_is_valid(pb) then
+              local files = picker.refresh()
+              local wins = vim.fn.win_findbuf(pb)
+              if #files>0 and (not wins or #wins==0) then
+                -- reopen picker if it was hidden by :wq closing last window
+                picker.open_picker()
+              elseif #files==0 then
+                vim.notify("MergeUI: All conflicts resolved ✓", vim.log.levels.INFO)
+              end
+            end
+          end)
         end)
       end
+    end,
+  })
+  -- Also hook BufWritePost for :w (without :q) to refresh picker in background so :wq filtered list is accurate
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group = grp2,
+    buffer = bufnr,
+    callback = function()
+      vim.schedule(function()
+        -- if file no longer has markers after write, refresh picker (so :wq list is filtered)
+        if not parser.has_conflicts(bufnr) and M._picker_return and vim.api.nvim_buf_is_valid(M._picker_return) then
+          picker.refresh()
+        end
+      end)
     end,
   })
 end

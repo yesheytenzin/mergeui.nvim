@@ -24,12 +24,30 @@ end
 
 vim.api.nvim_create_user_command("MergeUI", function(opts)
   ensure_setup()
-  require("mergeui").open()
-end, { desc = "Open RubyMine-style 3-pane merge" })
+  local m=require("mergeui")
+  if opts and opts.args and opts.args~="" then
+    local f=vim.trim(opts.args)
+    vim.cmd("edit "..vim.fn.fnameescape(f))
+    vim.schedule(function() m.open(vim.api.nvim_get_current_buf()) end)
+  else
+    require("mergeui.picker").open_picker()
+  end
+end, { desc = "Open MergeUI picker or 3-pane ( :MergeUI [file] )", nargs="?", complete="file" })
 
 vim.api.nvim_create_user_command("MergeUIClose", function()
   ensure_setup()
   require("mergeui.ui").close()
+  vim.schedule(function()
+    local p=require("mergeui.picker")
+    local st=p.get_state()
+    if st.buf and vim.api.nvim_buf_is_valid(st.buf) then
+      local files=p.refresh()
+      if #files>0 then
+        local wins=vim.fn.win_findbuf(st.buf)
+        if not wins or #wins==0 then p.open_picker() end
+      end
+    end
+  end)
 end, { desc = "Close RubyMine merge view" })
 
 for _, cmd in ipairs({ "TakeLeft", "TakeRight", "TakeBoth", "TakeNone" }) do
