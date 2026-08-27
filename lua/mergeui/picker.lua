@@ -74,24 +74,41 @@ function M.refresh()
   if not picker_state.buf or not vim.api.nvim_buf_is_valid(picker_state.buf) then return files end
   vim.api.nvim_buf_set_option(picker_state.buf, "modifiable", true)
   vim.api.nvim_buf_set_lines(picker_state.buf, 0, -1, false, {})
+  vim.api.nvim_buf_clear_namespace(picker_state.buf, picker_ns, 0, -1)
   if #files==0 then
     vim.api.nvim_buf_set_lines(picker_state.buf, 0, -1, false, {
-      "  ✓ No conflicts — all resolved!",
+      "  ✓  All conflicts resolved",
       "",
-      "  Press q to close, r to refresh",
+      "     r  refresh     q  close",
+    })
+    pcall(vim.api.nvim_buf_set_extmark, picker_state.buf, picker_ns, 0, 2, {
+      end_col = 3,
+      hl_group = "DiagnosticOk",
     })
   else
-    local lines = {}
-    table.insert(lines, string.format("  MERGE CONFLICTS (%d) — <CR> to open 3-pane  |  r refresh  |  q close", #files))
-    table.insert(lines, string.rep("─", 60))
-    for i,f in ipairs(files) do
-      table.insert(lines, string.format("%2d  %s", i, f))
+    local noun = #files == 1 and "file" or "files"
+    local lines = {
+      string.format("  MERGE CONFLICTS                                      %d %s", #files, noun),
+      "  Select a file with j/k — the merge view opens automatically",
+      "",
+    }
+    for i, f in ipairs(files) do
+      table.insert(lines, string.format("  %02d  ●  %s", i, f))
     end
     table.insert(lines, "")
-    table.insert(lines, "  Tip: :MergeUI <file> to open directly | :MergeUIClose to close merge")
+    table.insert(lines, "  r refresh     q close")
     vim.api.nvim_buf_set_lines(picker_state.buf, 0, -1, false, lines)
-    -- highlight first line
-    pcall(vim.api.nvim_buf_set_extmark, picker_state.buf, picker_ns, 0,0,{ end_row=1, hl_group="Title", hl_eol=true })
+    pcall(vim.api.nvim_buf_set_extmark, picker_state.buf, picker_ns, 0, 0, {
+      end_row = 1,
+      hl_group = "Title",
+      hl_eol = true,
+    })
+    for row = 3, #files + 2 do
+      pcall(vim.api.nvim_buf_set_extmark, picker_state.buf, picker_ns, row, 6, {
+        end_col = 9,
+        hl_group = "DiagnosticError",
+      })
+    end
   end
   vim.api.nvim_buf_set_option(picker_state.buf, "modifiable", false)
   return files
@@ -123,12 +140,12 @@ function M.open_picker()
   vim.wo[picker_state.win].winbar = " MERGEUI  │  Conflicts List "
   -- refresh content
   files = M.refresh()
-  -- keymaps (Enter or single/double click to open — no extra <CR> needed)
+  -- Keyboard selection opens automatically; Enter remains an explicit fallback.
   local opts = { buffer=picker_state.buf, silent=true, noremap=true }
   local function open_selected()
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
     local line = vim.api.nvim_buf_get_lines(picker_state.buf, lnum-1, lnum, false)[1] or ""
-    local file = line:match("^%s*%d+%s+(.+)$")
+    local file = line:match("^%s*%d+%s+●%s+(.+)$")
     if not file then
       file = vim.fn.expand("<cfile>")
       if file=="" then vim.notify("No file on line", vim.log.levels.WARN); return end
@@ -154,12 +171,6 @@ function M.open_picker()
     end)
   end
   vim.keymap.set("n", "<CR>", open_selected, opts)
-  -- single click = open immediately (without needing Enter)
-  vim.keymap.set("n", "<LeftMouse>", function()
-    -- let Neovim move cursor first, then open
-    vim.schedule(open_selected)
-  end, opts)
-  vim.keymap.set("n", "<2-LeftMouse>", open_selected, opts)
   vim.keymap.set("n", "q", function() 
     if vim.api.nvim_win_is_valid(picker_state.win) then pcall(vim.api.nvim_win_close, picker_state.win, false) end
     picker_state.win=nil
@@ -179,7 +190,7 @@ function M.open_picker()
       preview_timer = vim.fn.timer_start(120, function()
         -- reuse open_selected but without notify spam
         local line = vim.api.nvim_buf_get_lines(picker_state.buf, lnum-1, lnum, false)[1] or ""
-        local file = line:match("^%s*%d+%s+(.+)$")
+        local file = line:match("^%s*%d+%s+●%s+(.+)$")
         if not file or file:match("^─") or file:match("^MERGE") or file:match("^Tip:") then return end
         file = vim.trim(file)
         if vim.fn.filereadable(file)==0 then
@@ -203,7 +214,10 @@ function M.open_picker()
       end)
     end,
   })
-  vim.notify(string.format("MergeUI: %d file(s) — j/k to preview, <CR>/click to open", #files), vim.log.levels.INFO)
+  if #files > 0 then
+    pcall(vim.api.nvim_win_set_cursor, picker_state.win, { 4, 0 })
+  end
+  vim.notify(string.format("MergeUI: %d unresolved file(s)", #files), vim.log.levels.INFO)
   return files
 end
 
