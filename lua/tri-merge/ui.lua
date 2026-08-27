@@ -203,50 +203,64 @@ function M.open_layout(middle_bufnr, filepath)
 
   M.create_buffers(filepath, middle_bufnr)
 
-  -- RubyMine style: | LEFT (Current) | MIDDLE (Result) | RIGHT (Incoming) |
-  -- Current window is middle, create left and right splits
+  -- RubyMine style: | LEFT (Current) | MIDDLE (Result) | RIGHT (Incoming) |  — 3 EQUAL COLUMNS like IDE
   vim.api.nvim_set_current_win(state.middle_win)
-  -- left split
+  -- left split (Yours)
   vim.cmd("leftabove vsplit")
   state.left_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state.left_win, state.left_buf)
-  vim.wo[state.left_win].number = true
+  vim.wo[state.left_win].number = false
   vim.wo[state.left_win].relativenumber = false
   vim.wo[state.left_win].cursorline = true
-  vim.wo[state.left_win].winfixwidth = true
-  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent")
+  vim.wo[state.left_win].winfixwidth = false
+  vim.wo[state.left_win].signcolumn = "yes:1"
+  vim.wo[state.left_win].foldcolumn = "0"
+  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent,SignColumn:RubymineCurrent,CursorLine:RubymineCurrentLine")
 
-  -- go back to middle
+  -- go back to middle (Result)
   vim.api.nvim_set_current_win(state.middle_win)
-  -- right split
+  -- right split (Theirs)
   vim.cmd("rightbelow vsplit")
   state.right_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state.right_win, state.right_buf)
-  vim.wo[state.right_win].number = true
+  vim.wo[state.right_win].number = false
   vim.wo[state.right_win].cursorline = true
-  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming")
+  vim.wo[state.right_win].winfixwidth = false
+  vim.wo[state.right_win].signcolumn = "yes:1"
+  vim.wo[state.right_win].foldcolumn = "0"
+  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming,SignColumn:RubymineIncoming,CursorLine:RubymineIncomingLine")
 
-  -- back to middle (editable Result)
+  -- middle (Result) - editable, centered like RubyMine
   vim.api.nvim_set_current_win(state.middle_win)
+  vim.wo[state.middle_win].number = false
   vim.wo[state.middle_win].cursorline = true
   vim.wo[state.middle_win].winfixwidth = false
-  vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult")
+  vim.wo[state.middle_win].signcolumn = "yes:2"
+  vim.wo[state.middle_win].foldcolumn = "0"
+  vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult,SignColumn:RubymineResult,CursorLine:Visual")
 
-  -- titles + winbar 1:1 RubyMine header (branch names) + pipeline arrows
+  -- FORCE 3 EQUAL COLUMNS like RubyMine (33% / 33% / 33%) — this was missing, caused uneven widths
+  vim.o.equalalways = true
+  vim.o.eadirection = "hor"
+  vim.cmd("wincmd =")
+  local total = vim.o.columns
+  local w = math.floor((total - 4) / 3) -- -4 for separators
+  pcall(vim.api.nvim_win_set_width, state.left_win, w)
+  pcall(vim.api.nvim_win_set_width, state.middle_win, w)
+  pcall(vim.api.nvim_win_set_width, state.right_win, w)
+  vim.cmd("wincmd =") -- re-equalize after explicit widths
+
+  -- titles + winbar 1:1 RubyMine header — Yours | Result | Theirs with file tab on top like IDE
   pcall(function()
-    -- RubyMine header: Left=Yours:HEAD, Center=Result, Right=Theirs:MERGE_HEAD (like IDE tabs)
-    local left_title = "  Yours  [HEAD]  ──►►  >> "
-    local mid_title = "  Result  ──  <<  X  >> "
-    local right_title = "  <<  ──►►  Theirs  [MERGE_HEAD]  "
-    vim.api.nvim_win_set_option(state.left_win, "statusline", " " .. vim.fn.fnamemodify(filepath, ":t") .. left_title)
-    vim.api.nvim_win_set_option(state.middle_win, "statusline", " " .. vim.fn.fnamemodify(filepath, ":t") .. mid_title .. " ● editable ")
-    vim.api.nvim_win_set_option(state.right_win, "statusline", right_title .. vim.fn.fnamemodify(filepath, ":t") .. " ")
-    vim.wo[state.left_win].winbar = " %t │ Yours:HEAD ──────►►►  [>>] "
-    vim.wo[state.middle_win].winbar = " %t │ Result  ◄ [<<]  [X]  [>>] ► "
-    vim.wo[state.right_win].winbar = " [<<]  ◄◄◄────── Theirs:MERGE_HEAD │ %t "
-    vim.wo[state.left_win].winhl = "WinBar:RubymineWinbarNC,WinBarNC:RubymineWinbarNC"
-    vim.wo[state.middle_win].winhl = "WinBar:RubymineWinbar,WinBarNC:RubymineWinbar"
-    vim.wo[state.right_win].winhl = "WinBar:RubymineWinbarNC,WinBarNC:RubymineWinbarNC"
+    local fname = vim.fn.fnamemodify(filepath, ":t")
+    -- Top file tab (like RubyMine title bar)
+    vim.wo[state.left_win].winbar = "%#RubymineWinbarNC# " .. fname .. "  │  Yours (HEAD)    %#RubymineArrow# ──────►►  %#RubymineIndicator# >> "
+    vim.wo[state.middle_win].winbar = "%#RubymineWinbar#  " .. fname .. "  │  Result  %#RubymineIndicatorRight# <<%#RubymineWinbar#  %#RubymineIndicatorX# X %#RubymineWinbar#  %#RubymineIndicator# >> "
+    vim.wo[state.right_win].winbar = "%#RubymineIndicatorRight# << %#RubymineArrowRight# ◄◄────── %#RubymineWinbarNC#  Theirs (MERGE_HEAD)  │ " .. fname .. " "
+    -- Statusline footer (like RubyMine bottom bar) - keep minimal, show keybinds
+    vim.api.nvim_win_set_option(state.left_win, "statusline", "%#RubymineWinbarNC#  Yours  ──►►  %#RubymineIndicator#>>%#RubymineWinbarNC# take  %< " .. fname)
+    vim.api.nvim_win_set_option(state.middle_win, "statusline", "%#RubymineWinbar#  %f  %#Comment#  gh:>>  gl:<<  gX:X  %=%#RubymineWinbar# Result ● " .. string.format("%d conflicts", #state.conflicts))
+    vim.api.nvim_win_set_option(state.right_win, "statusline", "%#RubymineIndicatorRight#<<%#RubymineWinbarNC#  ◄◄── Theirs  %< " .. fname)
   end)
   -- nicer vertical separators
   pcall(function() vim.opt.fillchars:append({ vert = "│", verthoriz = "┤", horiz = "─", horizup = "┴", horizdown = "┬" }) end)
