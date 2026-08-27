@@ -25,8 +25,8 @@ local function ensure_hl()
   vim.api.nvim_set_hl(0, "RubymineResult", { bg = "#3b4252", fg = "#eceff4", default = true }) -- center pane active
   vim.api.nvim_set_hl(0, "RubymineConflict", { bg = "#4a2a2a", fg = "#ffcccc", default = false })
   vim.api.nvim_set_hl(0, "RubymineConflictMarker", { bg = "#3b3030", fg = "#7d6c6c", italic = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#3a4a6a", fg = "#d8dee9", default = true })
-  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#3a4a3a", fg = "#d8dee9", default = true })
+  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#4a2e2e", fg = "#ffcccc", default = true }) -- light red for CURRENT (left) changed text
+  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#2e4a2e", fg = "#ccffcc", default = true }) -- light green for INCOMING (right) changed text
   vim.api.nvim_set_hl(0, "RubymineIndicator", { fg = "#88c0d0", bg = "#2f3948", bold = true, default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { fg = "#a3be8c", bg = "#344036", bold = true, default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorX", { fg = "#bf616a", bg = "#423236", bold = true, default = true })
@@ -43,11 +43,12 @@ end
 function M.render_indicators()
   if not config.options.show_indicators then return end
   ensure_hl()
-  for _, bufnr in ipairs({ state.middle_buf, state.left_buf, state.right_buf }) do
+  for _, bufnr in ipairs({ state.middle_buf }) do
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
       M.clear_indicators(bufnr)
     end
   end
+  -- keep side pane highlights (light red/green) persistent; only clear middle
 
   for idx, c in ipairs(state.conflicts) do
     if state.middle_buf and vim.api.nvim_buf_is_valid(state.middle_buf) then
@@ -99,16 +100,32 @@ function M.create_buffers(filepath, middle_bufnr)
   state.conflicts = conflicts
   state.active_conflict = 1
 
-  -- Left: ours, Right: theirs
+  -- Left: ours, Right: theirs (no === markers, pure code)
   local left_lines, right_lines
+  local left_hl_ranges, right_hl_ranges = {}, {}
   if stage and stage.ours and stage.theirs then
     left_lines = vim.split(stage.ours, "\n")
     right_lines = vim.split(stage.theirs, "\n")
+    -- stage: highlight conflict blocks by searching for ours/theirs text in full files
+    for _, c in ipairs(conflicts) do
+      if #c.ours > 0 then
+        for idx=1, #left_lines - #c.ours +1 do
+          local ok=true
+          for k=1,#c.ours do if left_lines[idx+k-1] ~= c.ours[k] then ok=false; break end end
+          if ok then table.insert(left_hl_ranges, {idx-1, idx+#c.ours-2}); break end
+        end
+      end
+      if #c.theirs > 0 then
+        for idx=1, #right_lines - #c.theirs +1 do
+          local ok=true
+          for k=1,#c.theirs do if right_lines[idx+k-1] ~= c.theirs[k] then ok=false; break end end
+          if ok then table.insert(right_hl_ranges, {idx-1, idx+#c.theirs-2}); break end
+        end
+      end
+    end
   else
-    -- fallback: build from parsed conflicts to simulate RubyMine base
-    -- For fallback we reconstruct files by taking ours/theirs selections
+    -- fallback: reconstruct from markers
     local all = vim.api.nvim_buf_get_lines(middle_bufnr, 0, -1, false)
-    -- left = replace each conflict with ours
     left_lines = {}
     right_lines = {}
     local i = 1
@@ -119,8 +136,12 @@ function M.create_buffers(filepath, middle_bufnr)
           if c.start == i then c_idx = c break end
         end
         if c_idx then
+          local l_start = #left_lines
           for _, l in ipairs(c_idx.ours) do table.insert(left_lines, l) end
+          if #c_idx.ours > 0 then table.insert(left_hl_ranges, {l_start, #left_lines - 1}) end
+          local r_start = #right_lines
           for _, l in ipairs(c_idx.theirs) do table.insert(right_lines, l) end
+          if #c_idx.theirs > 0 then table.insert(right_hl_ranges, {r_start, #right_lines - 1}) end
           i = c_idx.finish + 1
         else
           table.insert(left_lines, all[i])
@@ -134,6 +155,8 @@ function M.create_buffers(filepath, middle_bufnr)
       end
     end
   end
+  state._left_hl_ranges = left_hl_ranges
+  state._right_hl_ranges = right_hl_ranges
 
   state.left_buf = vim.api.nvim_create_buf(false, true)
   state.right_buf = vim.api.nvim_create_buf(false, true)
@@ -153,6 +176,29 @@ function M.create_buffers(filepath, middle_bufnr)
   -- :w / :q for side panes is handled via BufWriteCmd/QuitPre in init.lua (redirects to RESULT)
   vim.api.nvim_buf_set_name(state.left_buf, "CURRENT (Yours) - " .. filepath)
   vim.api.nvim_buf_set_name(state.right_buf, "INCOMING (Theirs) - " .. filepath)
+
+  -- highlight changed blocks in side panes with light red / light green (no === markers)
+  vim.schedule(function()
+    if state.left_buf and vim.api.nvim_buf_is_valid(state.left_buf) then
+      vim.api.nvim_buf_clear_namespace(state.left_buf, ns, 0, -1)
+      local ranges = state._left_hl_ranges
+      if ranges then
+        for _, r in ipairs(ranges) do
+          pcall(vim.api.nvim_buf_set_extmark, state.left_buf, ns, r[1], 0, { end_row = r[2]+1, hl_group = "RubymineCurrentLine", hl_eol = true })
+        end
+      end
+    end
+    if state.right_buf and vim.api.nvim_buf_is_valid(state.right_buf) then
+      vim.api.nvim_buf_clear_namespace(state.right_buf, ns, 0, -1)
+      local ranges = state._right_hl_ranges
+      if ranges then
+        for _, r in ipairs(ranges) do
+          pcall(vim.api.nvim_buf_set_extmark, state.right_buf, ns, r[1], 0, { end_row = r[2]+1, hl_group = "RubymineIncomingLine", hl_eol = true })
+        end
+      end
+    end
+  end)
+
   return left_lines, right_lines
 end
 
