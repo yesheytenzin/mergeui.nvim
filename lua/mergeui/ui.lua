@@ -19,20 +19,50 @@ local state = {
 function M.get_state() return state end
 
 local function ensure_hl()
-  -- RubyMine dark 3-way merge colors
-  vim.api.nvim_set_hl(0, "RubymineCurrent", { bg = "#2e3440", fg = "#d8dee9", default = true }) -- left pane base
-  vim.api.nvim_set_hl(0, "RubymineIncoming", { bg = "#2e3440", fg = "#d8dee9", default = true }) -- right pane base
-  vim.api.nvim_set_hl(0, "RubymineResult", { bg = "#3b4252", fg = "#eceff4", default = true }) -- center pane active
-  vim.api.nvim_set_hl(0, "RubymineConflict", { bg = "#4a2a2a", fg = "#ffcccc", default = false })
-  vim.api.nvim_set_hl(0, "RubymineConflictMarker", { bg = "#3b3030", fg = "#7d6c6c", italic = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#4a2e2e", fg = "#ffcccc", default = true }) -- light red for CURRENT (left) changed text
-  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#2e4a2e", fg = "#ccffcc", default = true }) -- light green for INCOMING (right) changed text
-  vim.api.nvim_set_hl(0, "RubymineIndicator", { fg = "#88c0d0", bg = "#2f3948", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { fg = "#a3be8c", bg = "#344036", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineIndicatorX", { fg = "#bf616a", bg = "#423236", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineActionBar", { bg = "#2e3440", fg = "#7f8c9f", default = true })
-  vim.api.nvim_set_hl(0, "RubymineWinbar", { bg = "#434c5e", fg = "#eceff4", bold = true, default = true })
-  vim.api.nvim_set_hl(0, "RubymineWinbarNC", { bg = "#353c4a", fg = "#c6ccd6", default = true })
+  -- Follow system theme (light/dark) via standard highlight links + background-aware fallback
+  local is_dark = vim.o.background == "dark"
+  -- Base panes follow Normal so they match any colorscheme (Omarchy, Tokyonight, etc.)
+  vim.api.nvim_set_hl(0, "RubymineCurrent", { link = "Normal", default = true })
+  vim.api.nvim_set_hl(0, "RubymineIncoming", { link = "Normal", default = true })
+  vim.api.nvim_set_hl(0, "RubymineResult", { link = "Normal", default = true })
+  -- Conflict/marker use theme's Diff/Comment so they adapt to light/dark
+  vim.api.nvim_set_hl(0, "RubymineConflict", { link = "DiffDelete", default = true })
+  vim.api.nvim_set_hl(0, "RubymineConflictMarker", { link = "Comment", default = true })
+  -- Changed blocks: light red / light green that follow theme
+  -- Prefer Diff groups (they are theme-aware); provide subtle fallback if theme has no bg
+  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { link = "DiffDelete", default = true })
+  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { link = "DiffAdd", default = true })
+  -- If Diff groups have no background (some minimal themes), set explicit light/dark fallback
+  local function has_bg(name)
+    local hl = vim.api.nvim_get_hl(0, { name = name })
+    return hl.bg ~= nil or hl.background ~= nil
+  end
+  if not has_bg("DiffDelete") then
+    if is_dark then
+      vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#4a2e2e", fg = "#ffcccc" })
+    else
+      vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#ffebe9", fg = "#82071e" })
+    end
+  end
+  if not has_bg("DiffAdd") then
+    if is_dark then
+      vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#2e4a2e", fg = "#ccffcc" })
+    else
+      vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#dafbe1", fg = "#116329" })
+    end
+  end
+  vim.api.nvim_set_hl(0, "RubymineIndicator", { link = "DiagnosticInfo", default = true })
+  vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { link = "DiagnosticOk", default = true })
+  vim.api.nvim_set_hl(0, "RubymineIndicatorX", { link = "DiagnosticError", default = true })
+  vim.api.nvim_set_hl(0, "RubymineActionBar", { link = "StatusLineNC", default = true })
+  vim.api.nvim_set_hl(0, "RubymineWinbar", { link = "WinBar", default = true })
+  vim.api.nvim_set_hl(0, "RubymineWinbarNC", { link = "WinBarNC", default = true })
+  -- Auto-update on colorscheme/background change
+  pcall(vim.api.nvim_create_autocmd, {"ColorScheme", "OptionSet"}, {
+    pattern = {"*", "background"},
+    group = vim.api.nvim_create_augroup("MergeUIThemeSync", {clear=true}),
+    callback = function() vim.schedule(ensure_hl) end,
+  })
 end
 
 function M.clear_indicators(bufnr)
