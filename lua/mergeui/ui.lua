@@ -252,7 +252,7 @@ function M.open_layout(middle_bufnr, filepath)
   vim.wo[state.left_win].winfixwidth = false
   vim.wo[state.left_win].signcolumn = "no"
   vim.wo[state.left_win].foldcolumn = "0"
-  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent,SignColumn:RubymineCurrent,CursorLine:RubymineCurrentLine")
+  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent,SignColumn:RubymineCurrent,CursorLine:CursorLine")
 
   -- go back to middle (Result)
   vim.api.nvim_set_current_win(state.middle_win)
@@ -265,7 +265,7 @@ function M.open_layout(middle_bufnr, filepath)
   vim.wo[state.right_win].winfixwidth = false
   vim.wo[state.right_win].signcolumn = "no"
   vim.wo[state.right_win].foldcolumn = "0"
-  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming,SignColumn:RubymineIncoming,CursorLine:RubymineIncomingLine")
+  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming,SignColumn:RubymineIncoming,CursorLine:CursorLine")
 
   -- middle (Result) - editable, centered like RubyMine
   vim.api.nvim_set_current_win(state.middle_win)
