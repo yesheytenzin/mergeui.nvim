@@ -136,22 +136,23 @@ function M.create_buffers(filepath, middle_bufnr)
   if stage and stage.ours and stage.theirs then
     left_lines = vim.split(stage.ours, "\n")
     right_lines = vim.split(stage.theirs, "\n")
-    -- stage: highlight conflict blocks by searching for ours/theirs text in full files
+    -- stage: map middle marker positions to left/right (no search, avoids matching same code with no conflict)
+    local offset = 0
     for _, c in ipairs(conflicts) do
       if #c.ours > 0 then
-        for idx=1, #left_lines - #c.ours +1 do
-          local ok=true
-          for k=1,#c.ours do if left_lines[idx+k-1] ~= c.ours[k] then ok=false; break end end
-          if ok then table.insert(left_hl_ranges, {idx-1, idx+#c.ours-2}); break end
+        local l_start = c.start - 1 - offset
+        -- clamp to buffer bounds
+        if l_start >=0 and l_start + #c.ours <= #left_lines then
+          table.insert(left_hl_ranges, {l_start, l_start + #c.ours - 1})
         end
       end
       if #c.theirs > 0 then
-        for idx=1, #right_lines - #c.theirs +1 do
-          local ok=true
-          for k=1,#c.theirs do if right_lines[idx+k-1] ~= c.theirs[k] then ok=false; break end end
-          if ok then table.insert(right_hl_ranges, {idx-1, idx+#c.theirs-2}); break end
+        local r_start = c.start - 1 - offset
+        if r_start >=0 and r_start + #c.theirs <= #right_lines then
+          table.insert(right_hl_ranges, {r_start, r_start + #c.theirs - 1})
         end
       end
+      offset = offset + 3 -- 3 marker lines (<<<<<<<, =======, >>>>>>>) not in side buffers
     end
   else
     -- fallback: reconstruct from markers
