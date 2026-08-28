@@ -28,28 +28,14 @@ local function ensure_hl()
   -- Conflict/marker use theme's Diff/Comment so they adapt to light/dark
   vim.api.nvim_set_hl(0, "RubymineConflict", { link = "DiffDelete", default = true })
   vim.api.nvim_set_hl(0, "RubymineConflictMarker", { link = "Comment", default = true })
-  -- Changed blocks: light red / light green that follow theme
-  -- Prefer Diff groups (they are theme-aware); provide subtle fallback if theme has no bg
-  vim.api.nvim_set_hl(0, "RubymineCurrentLine", { link = "DiffDelete", default = true })
-  vim.api.nvim_set_hl(0, "RubymineIncomingLine", { link = "DiffAdd", default = true })
-  -- If Diff groups have no background (some minimal themes), set explicit light/dark fallback
-  local function has_bg(name)
-    local hl = vim.api.nvim_get_hl(0, { name = name })
-    return hl.bg ~= nil or hl.background ~= nil
-  end
-  if not has_bg("DiffDelete") then
-    if is_dark then
-      vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#4a2e2e", fg = "#ffcccc" })
-    else
-      vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#ffebe9", fg = "#82071e" })
-    end
-  end
-  if not has_bg("DiffAdd") then
-    if is_dark then
-      vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#2e4a2e", fg = "#ccffcc" })
-    else
-      vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#dafbe1", fg = "#116329" })
-    end
+  -- Changed blocks: lighter, theme-aware red/green (only on conflicting code)
+  -- Soft light red/green that follows light/dark, more subtle than DiffDelete/Add
+  if is_dark then
+    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#5e3a3a", fg = "#ffcccc" }) -- lighter red for dark
+    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#3a4e3a", fg = "#ccffcc" }) -- lighter green for dark
+  else
+    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#fff0f0", fg = "#5a1a1a" }) -- softer light red
+    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#f0fff0", fg = "#1a4d1a" }) -- softer light green
   end
   vim.api.nvim_set_hl(0, "RubymineIndicator", { link = "DiagnosticInfo", default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { link = "DiagnosticOk", default = true })
