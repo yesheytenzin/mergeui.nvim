@@ -178,6 +178,10 @@ function M.setup(opts)
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeBoth", function() apply("both") end, { desc = "Take both" })
     pcall(vim.api.nvim_create_user_command, prefix .. "TakeNone", function() apply("none") end, { desc = "Dismiss conflict (X)" })
   end
+  -- view toggle: single (only RESULT) vs triple (CURRENT|RESULT|INCOMING)
+  pcall(vim.api.nvim_create_user_command, "MergeUIToggle", function() require("mergeui.ui").toggle_view() end, { desc = "MergeUI: toggle single ↔ triple view" })
+  pcall(vim.api.nvim_create_user_command, "MergeUISingle", function() require("mergeui.config").options.view="single"; vim.notify("MergeUI: single pane (RESULT only)", vim.log.levels.INFO) end, { desc = "MergeUI: single pane" })
+  pcall(vim.api.nvim_create_user_command, "MergeUITriple", function() require("mergeui.config").options.view="triple"; vim.notify("MergeUI: triple pane (CURRENT|RESULT|INCOMING)", vim.log.levels.INFO) end, { desc = "MergeUI: triple pane" })
 
   pcall(vim.api.nvim_create_user_command, "MergeUIWriteQuit", M.write_quit, {
     desc = "Write result, close all merge panes, and return to conflict list",
@@ -277,6 +281,14 @@ function M.open(bufnr)
   for _, target_buf in ipairs({ merge_state.left_buf, merge_state.middle_buf, merge_state.right_buf }) do
     if target_buf and vim.api.nvim_buf_is_valid(target_buf) then
       set_merge_keymaps(target_buf)
+    end
+  end
+  -- toggle view from any merge pane
+  for _, target_buf in ipairs({ merge_state.left_buf, merge_state.middle_buf, merge_state.right_buf }) do
+    if target_buf and vim.api.nvim_buf_is_valid(target_buf) then
+      vim.keymap.set("n", "<leader>mt", function() require("mergeui.ui").toggle_view() end, { buffer=target_buf, silent=true, desc="MergeUI: toggle single/triple" })
+      vim.keymap.set("n", "<leader>m1", function() require("mergeui.config").options.view="single"; vim.notify("single") end, { buffer=target_buf, silent=true })
+      vim.keymap.set("n", "<leader>m3", function() require("mergeui.config").options.view="triple"; vim.notify("triple") end, { buffer=target_buf, silent=true })
     end
   end
 

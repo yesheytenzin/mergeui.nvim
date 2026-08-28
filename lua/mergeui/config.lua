@@ -1,9 +1,9 @@
 local M = {}
 
 M.defaults = {
-  -- layout: "horizontal" uses 3 vertical splits (RubyMine style)
-  -- "vertical" would stack horizontally; keep vertical splits by default
-  layout = "vertical", -- vertical splits: | left | middle | right |
+  -- view: "triple" = 3 panes | CURRENT | RESULT | INCOMING | (RubyMine), "single" = only RESULT (middle)
+  view = "triple", -- "triple" or "single"
+  layout = "vertical", -- deprecated: use view; kept for backward compat ("vertical"=triple, "horizontal"=single)
   keymaps = {
     take_left = "<leader>mh",   --  >>  (take CURRENT/Yours)
     take_right = "<leader>ml",  --  <<  (take INCOMING/Theirs)
@@ -28,7 +28,19 @@ M.defaults = {
 M.options = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
+  opts = opts or {}
+  -- backward compat: layout "vertical" -> view "triple", "horizontal" -> "single"
+  if opts.view == nil and opts.layout ~= nil then
+    if opts.layout == "horizontal" or opts.layout == "single" then opts.view = "single"
+    elseif opts.layout == "vertical" or opts.layout == "triple" then opts.view = "triple" end
+  end
+  -- also support panels = 1 or 3
+  if opts.view == nil and opts.panels ~= nil then
+    opts.view = (opts.panels == 1 and "single" or "triple")
+  end
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+  -- normalize
+  if M.options.view ~= "single" and M.options.view ~= "triple" then M.options.view = "triple" end
 end
 
 return M

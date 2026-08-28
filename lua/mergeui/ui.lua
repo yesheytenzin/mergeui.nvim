@@ -240,63 +240,82 @@ function M.open_layout(middle_bufnr, filepath)
 
   M.create_buffers(filepath, middle_bufnr)
 
-  -- RubyMine style: | LEFT (Current) | MIDDLE (Result) | RIGHT (Incoming) |  — 3 EQUAL COLUMNS like IDE
-  vim.api.nvim_set_current_win(state.middle_win)
-  -- left split (Yours)
-  vim.cmd("leftabove vsplit")
-  state.left_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(state.left_win, state.left_buf)
-  vim.wo[state.left_win].number = false
-  vim.wo[state.left_win].relativenumber = false
-  vim.wo[state.left_win].cursorline = true
-  vim.wo[state.left_win].winfixwidth = false
-  vim.wo[state.left_win].signcolumn = "no"
-  vim.wo[state.left_win].foldcolumn = "0"
-  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent,SignColumn:RubymineCurrent,CursorLine:CursorLine")
+  local view = require("mergeui.config").options.view
+  -- Single pane: only RESULT (middle), no side windows
+  if view == "single" then
+    state.left_win = nil
+    state.right_win = nil
+    vim.api.nvim_set_current_win(state.middle_win)
+    vim.wo[state.middle_win].number = false
+    vim.wo[state.middle_win].cursorline = true
+    vim.wo[state.middle_win].winfixwidth = false
+    vim.wo[state.middle_win].signcolumn = "yes:1"
+    vim.wo[state.middle_win].foldcolumn = "0"
+    vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult,SignColumn:RubymineResult,CursorLine:Visual")
+    pcall(function()
+      local fname = vim.fn.fnamemodify(filepath, ":t")
+      vim.wo[state.middle_win].winbar = "%#RubymineWinbar#  RESULT · " .. fname .. "  %=%#RubymineWinbar# SINGLE "
+      vim.api.nvim_win_set_option(state.middle_win, "statusline", "%#RubymineWinbar#  gh Current  gl Incoming  gB Both  gX Discard  %=%#RubymineWinbar#" .. string.format(" %d conflicts ", #state.conflicts))
+    end)
+  else
+    -- RubyMine style: | LEFT (Current) | MIDDLE (Result) | RIGHT (Incoming) |  — 3 EQUAL COLUMNS like IDE
+    vim.api.nvim_set_current_win(state.middle_win)
+    -- left split (Yours)
+    vim.cmd("leftabove vsplit")
+    state.left_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(state.left_win, state.left_buf)
+    vim.wo[state.left_win].number = false
+    vim.wo[state.left_win].relativenumber = false
+    vim.wo[state.left_win].cursorline = true
+    vim.wo[state.left_win].winfixwidth = false
+    vim.wo[state.left_win].signcolumn = "no"
+    vim.wo[state.left_win].foldcolumn = "0"
+    vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:RubymineCurrent,SignColumn:RubymineCurrent,CursorLine:CursorLine")
 
-  -- go back to middle (Result)
-  vim.api.nvim_set_current_win(state.middle_win)
-  -- right split (Theirs)
-  vim.cmd("rightbelow vsplit")
-  state.right_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(state.right_win, state.right_buf)
-  vim.wo[state.right_win].number = false
-  vim.wo[state.right_win].cursorline = true
-  vim.wo[state.right_win].winfixwidth = false
-  vim.wo[state.right_win].signcolumn = "no"
-  vim.wo[state.right_win].foldcolumn = "0"
-  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming,SignColumn:RubymineIncoming,CursorLine:CursorLine")
+    -- go back to middle (Result)
+    vim.api.nvim_set_current_win(state.middle_win)
+    -- right split (Theirs)
+    vim.cmd("rightbelow vsplit")
+    state.right_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(state.right_win, state.right_buf)
+    vim.wo[state.right_win].number = false
+    vim.wo[state.right_win].cursorline = true
+    vim.wo[state.right_win].winfixwidth = false
+    vim.wo[state.right_win].signcolumn = "no"
+    vim.wo[state.right_win].foldcolumn = "0"
+    vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:RubymineIncoming,SignColumn:RubymineIncoming,CursorLine:CursorLine")
 
-  -- middle (Result) - editable, centered like RubyMine
-  vim.api.nvim_set_current_win(state.middle_win)
-  vim.wo[state.middle_win].number = false
-  vim.wo[state.middle_win].cursorline = true
-  vim.wo[state.middle_win].winfixwidth = false
-  vim.wo[state.middle_win].signcolumn = "yes:1"
-  vim.wo[state.middle_win].foldcolumn = "0"
-  vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult,SignColumn:RubymineResult,CursorLine:Visual")
+    -- middle (Result) - editable, centered like RubyMine
+    vim.api.nvim_set_current_win(state.middle_win)
+    vim.wo[state.middle_win].number = false
+    vim.wo[state.middle_win].cursorline = true
+    vim.wo[state.middle_win].winfixwidth = false
+    vim.wo[state.middle_win].signcolumn = "yes:1"
+    vim.wo[state.middle_win].foldcolumn = "0"
+    vim.api.nvim_win_set_option(state.middle_win, "winhl", "Normal:RubymineResult,SignColumn:RubymineResult,CursorLine:Visual")
 
-  -- FORCE 3 EQUAL COLUMNS like RubyMine (33% / 33% / 33%) — this was missing, caused uneven widths
-  vim.o.equalalways = true
-  vim.o.eadirection = "hor"
-  vim.cmd("wincmd =")
-  local total = vim.o.columns
-  local w = math.floor((total - 4) / 3) -- -4 for separators
-  pcall(vim.api.nvim_win_set_width, state.left_win, w)
-  pcall(vim.api.nvim_win_set_width, state.middle_win, w)
-  pcall(vim.api.nvim_win_set_width, state.right_win, w)
-  vim.cmd("wincmd =") -- re-equalize after explicit widths
+    -- FORCE 3 EQUAL COLUMNS like RubyMine (33% / 33% / 33%)
+    vim.o.equalalways = true
+    vim.o.eadirection = "hor"
+    vim.cmd("wincmd =")
+    local total = vim.o.columns
+    local w = math.floor((total - 4) / 3)
+    pcall(vim.api.nvim_win_set_width, state.left_win, w)
+    pcall(vim.api.nvim_win_set_width, state.middle_win, w)
+    pcall(vim.api.nvim_win_set_width, state.right_win, w)
+    vim.cmd("wincmd =")
 
-  -- Clean pane titles; directional actions live beside the conflict they affect.
-  pcall(function()
-    local fname = vim.fn.fnamemodify(filepath, ":t")
-    vim.wo[state.left_win].winbar = "%#RubymineWinbarNC#  CURRENT · HEAD  %=%#RubymineIndicator# >> RESULT "
-    vim.wo[state.middle_win].winbar = "%#RubymineWinbar#  RESULT · " .. fname .. "  %=%#RubymineWinbar# EDITABLE "
-    vim.wo[state.right_win].winbar = "%#RubymineIndicatorRight# RESULT << %#RubymineWinbarNC#%=  INCOMING · MERGE_HEAD  "
-    vim.api.nvim_win_set_option(state.left_win, "statusline", "%#RubymineWinbarNC#  CURRENT  %=%l:%c ")
-    vim.api.nvim_win_set_option(state.middle_win, "statusline", "%#RubymineWinbar#  gh Current  gl Incoming  gB Both  gX Discard  %=%#RubymineWinbar#" .. string.format(" %d conflicts ", #state.conflicts))
-    vim.api.nvim_win_set_option(state.right_win, "statusline", "%#RubymineWinbarNC#  INCOMING  %=%l:%c ")
-  end)
+    -- Clean pane titles; directional actions live beside the conflict they affect.
+    pcall(function()
+      local fname = vim.fn.fnamemodify(filepath, ":t")
+      vim.wo[state.left_win].winbar = "%#RubymineWinbarNC#  CURRENT · HEAD  %=%#RubymineIndicator# >> RESULT "
+      vim.wo[state.middle_win].winbar = "%#RubymineWinbar#  RESULT · " .. fname .. "  %=%#RubymineWinbar# EDITABLE "
+      vim.wo[state.right_win].winbar = "%#RubymineIndicatorRight# RESULT << %#RubymineWinbarNC#%=  INCOMING · MERGE_HEAD  "
+      vim.api.nvim_win_set_option(state.left_win, "statusline", "%#RubymineWinbarNC#  CURRENT  %=%l:%c ")
+      vim.api.nvim_win_set_option(state.middle_win, "statusline", "%#RubymineWinbar#  gh Current  gl Incoming  gB Both  gX Discard  %=%#RubymineWinbar#" .. string.format(" %d conflicts ", #state.conflicts))
+      vim.api.nvim_win_set_option(state.right_win, "statusline", "%#RubymineWinbarNC#  INCOMING  %=%l:%c ")
+    end)
+  end
   -- nicer vertical separators
   pcall(function() vim.opt.fillchars:append({ vert = "│", verthoriz = "┤", horiz = "─", horizup = "┴", horizdown = "┬" }) end)
 
@@ -312,6 +331,24 @@ function M.open_layout(middle_bufnr, filepath)
   M.render_indicators()
 
   -- keymaps are set in init.lua
+end
+
+
+function M.toggle_view()
+  local cfg = require("mergeui.config")
+  cfg.options.view = (cfg.options.view == "single" and "triple" or "single")
+  local cur = M.get_state()
+  if cur.active and cur.middle_buf and vim.api.nvim_buf_is_valid(cur.middle_buf) then
+    local buf = cur.middle_buf
+    local file = vim.api.nvim_buf_get_name(buf)
+    M.close()
+    vim.schedule(function() require("mergeui").open(buf) end)
+    vim.notify("MergeUI view: " .. cfg.options.view, vim.log.levels.INFO)
+    return cfg.options.view
+  else
+    vim.notify("MergeUI view set to " .. cfg.options.view .. " (next :MergeUI will use it)", vim.log.levels.INFO)
+    return cfg.options.view
+  end
 end
 
 function M.close()
