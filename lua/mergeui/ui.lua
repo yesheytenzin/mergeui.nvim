@@ -28,14 +28,13 @@ local function ensure_hl()
   -- Conflict/marker use theme's Diff/Comment so they adapt to light/dark
   vim.api.nvim_set_hl(0, "RubymineConflict", { link = "DiffDelete", default = true })
   vim.api.nvim_set_hl(0, "RubymineConflictMarker", { link = "Comment", default = true })
-  -- Changed blocks: lighter, theme-aware red/green (only on conflicting code)
-  -- Soft light red/green that follows light/dark, more subtle than DiffDelete/Add
+  -- Changed blocks: theme-aware red/green (only on conflicting code) — a bit darker than previous lighter
   if is_dark then
-    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#5e3a3a", fg = "#ffcccc" }) -- lighter red for dark
-    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#3a4e3a", fg = "#ccffcc" }) -- lighter green for dark
+    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#523030", fg = "#ffcccc" }) -- darker than #5e3a3a
+    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#324432", fg = "#ccffcc" }) -- darker than #3a4e3a
   else
-    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#fff0f0", fg = "#5a1a1a" }) -- softer light red
-    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#f0fff0", fg = "#1a4d1a" }) -- softer light green
+    vim.api.nvim_set_hl(0, "RubymineCurrentLine", { bg = "#ffe4e4", fg = "#5a1a1a" }) -- a bit darker than #fff0f0
+    vim.api.nvim_set_hl(0, "RubymineIncomingLine", { bg = "#e4ffe4", fg = "#1a4d1a" }) -- a bit darker than #f0fff0
   end
   vim.api.nvim_set_hl(0, "RubymineIndicator", { link = "DiagnosticInfo", default = true })
   vim.api.nvim_set_hl(0, "RubymineIndicatorRight", { link = "DiagnosticOk", default = true })
