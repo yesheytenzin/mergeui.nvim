@@ -21,6 +21,12 @@ M.defaults = {
   },
   -- show virtual text indicators (>>, <<, X) like RubyMine
   show_indicators = true,
+  -- RubyMine-style: keep CURRENT/RESULT/INCOMING centered on the same
+  -- conflict (line counts differ, so plain scrollbind can't do this).
+  sync_sides = true,
+  -- when the cursor moves into another conflict in RESULT, recentre the
+  -- side panes on it without moving the middle cursor.
+  auto_follow = true,
   -- auto open when file has conflicts on BufRead?
   auto_open = false,
 }

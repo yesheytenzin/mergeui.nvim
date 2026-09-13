@@ -99,6 +99,8 @@ local function apply(choice)
   local next_conflict = state.conflicts[state.active_conflict]
   local new_lnum = next_conflict and next_conflict.start or math.max(1, c.start)
   pcall(vim.api.nvim_win_set_cursor, state.middle_win, { new_lnum, 0 })
+  -- Keep side panes on the same (next) conflict after the edit.
+  if next_conflict then ui.sync_conflict(state.active_conflict) end
 
   local labels = { left = ">> CURRENT (yours)", right = "<< INCOMING (theirs)", both = "both", none = "X dismissed" }
   vim.notify(string.format("Conflict %d: took %s", idx, labels[choice]), vim.log.levels.INFO)
@@ -125,6 +127,8 @@ local function jump(dir)
   if state.middle_win and vim.api.nvim_win_is_valid(state.middle_win) then
     vim.api.nvim_win_call(state.middle_win, function() vim.cmd("normal! zz") end)
   end
+  -- RubyMine-style: bring CURRENT and INCOMING to the same conflict.
+  ui.sync_conflict(idx)
 end
 
 function M.setup(opts)
@@ -296,6 +300,7 @@ function M.open(bufnr)
   if merge_state.conflicts[1] then
     pcall(vim.api.nvim_win_set_cursor, merge_state.middle_win, { merge_state.conflicts[1].start, 0 })
     vim.api.nvim_win_call(merge_state.middle_win, function() vim.cmd("normal! zz") end)
+    ui.sync_conflict(1)
   end
   pcall(function() vim.api.nvim_set_current_win(merge_state.middle_win) end)
 
@@ -376,6 +381,29 @@ function M.open(bufnr)
           pcall(picker.refresh)
         end
       end)
+    end,
+  })
+  -- Cursor-follow: moving into another conflict in RESULT recentres the
+  -- side panes on it (middle stays where you put it).
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = grp2,
+    buffer = bufnr,
+    callback = function()
+      local st = ui.get_state()
+      if not st.active or st._syncing then return end
+      if not require("mergeui.config").options.auto_follow then return end
+      if not (st.middle_win and vim.api.nvim_win_is_valid(st.middle_win)
+        and vim.api.nvim_get_current_win() == st.middle_win) then return end
+      local ok, pos = pcall(vim.api.nvim_win_get_cursor, st.middle_win)
+      if not ok then return end
+      for i, c in ipairs(st.conflicts) do
+        if pos[1] >= c.start and pos[1] <= c.finish then
+          if i ~= st.active_conflict then
+            ui.sync_conflict(i, { center_middle = false })
+          end
+          break
+        end
+      end
     end,
   })
 end
