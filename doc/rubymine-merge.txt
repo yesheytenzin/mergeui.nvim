@@ -46,27 +46,24 @@ CONTENTS                                                    *rubymine-merge*
 ==============================================================================
 3. KEYMAPS / INDICATORS                      *rubymine-merge-keymaps*
 
-  Buffer-local on all three panes (so global `gl` etc. don't steal them).
-  Defaults are set from `setup({ keymaps = ... })`; `gh`/`gl`/`gB`/`gX`
-  are always mapped as aliases:
+  Buffer-local on all three panes (single key per action, no aliases):
 
-    <leader>mh  / gh     Take left  (>>)  — CURRENT/Yours  — statusline `mh/gh`
-    <leader>ml  / gl     Take right (<<)  — INCOMING/Theirs — `ml/gl`
-    <leader>mb  / gB     Take both  (B)                   — `mb/gB`
-    <leader>mx  / gX     Dismiss    (X)                   — `mx/gX`
+    <leader>mh           Take left  (>>)  — CURRENT/Yours  — statusline `mh`
+    <leader>ml           Take right (<<)  — INCOMING/Theirs — `ml`
+    <leader>mb           Take both  (B)                   — `mb`
+    <leader>mx           Dismiss    (X)                   — `mx`
     ]c  / [c             Next / prev conflict             — `]c/[c`
     <leader>mq           Quit merge view                  — `mq Quit  N conflicts`
     <leader>mt           Toggle single/triple view (<leader>m1 / <leader>m3)
 
-  What you see is what works. The middle `statusline`, the side
-  `winbar`s (`mh/gh >> RESULT` / `RESULT << ml/gl`), and the
-  per-conflict action strip (`1/2  >> CURRENT mh/gh  × DISCARD mx/gX
-  << INCOMING ml/gl  BOTH mb/gB`) always show your effective keys —
-  custom `setup({ keymaps = { take_left = "<C-h>" } })` renders as
-  `<C-h>/gh` everywhere.
+  What you see is what works — one key per action. The middle
+  `statusline`, the side `winbar`s (`mh >> RESULT` / `RESULT << ml`),
+  and the per-conflict action strip (`1/2  >> CURRENT mh  × DISCARD mx
+  << INCOMING ml  BOTH mb`) always show your effective `setup({ keymaps
+  })` keys; e.g. `take_left = "<C-h>"` renders as `<C-h>` in all three.
 
   Middle statusline example:
-    `mh/gh Current  ml/gl Incoming  mb/gB Both  mx/gX Discard  ]c/[c  mq Quit  2 conflicts`
+    `mh Current  ml Incoming  mb Both  mx Discard  ]c/[c  mq Quit  2 conflicts`
 
   Customize via setup({ keymaps = { ... } })
 

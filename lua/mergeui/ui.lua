@@ -165,16 +165,15 @@ end
 
 -- Middle-pane statusline built from the active keymaps, so what the buffer
 -- shows always matches what actually works (incl. user overrides via
--- setup({ keymaps = ... })). The gh/gl/gB/gX aliases are always mapped
--- too, hence the "configured/alias" pairs.
+-- setup({ keymaps = ... })).
 local function middle_statusline()
   local km = config.options.keymaps
   return string.format(
-    "%%#RubymineWinbar#  %s/%s Current  %s/%s Incoming  %s/%s Both  %s/%s Discard  %%=%%#RubymineWinbar#%s/%s  %s Quit  %d conflicts ",
-    short_lhs(km.take_left), "gh",
-    short_lhs(km.take_right), "gl",
-    short_lhs(km.take_both), "gB",
-    short_lhs(km.take_none), "gX",
+    "%%#RubymineWinbar#  %s Current  %s Incoming  %s Both  %s Discard  %%=%%#RubymineWinbar#%s/%s  %s Quit  %d conflicts ",
+    short_lhs(km.take_left),
+    short_lhs(km.take_right),
+    short_lhs(km.take_both),
+    short_lhs(km.take_none),
     km.next_conflict, km.prev_conflict,
     short_lhs(km.quit),
     #state.conflicts)
@@ -236,10 +235,10 @@ function M.render_indicators()
       pcall(vim.api.nvim_buf_set_extmark, state.middle_buf, ns, c.start - 1, 0, {
         virt_lines = { {
           { string.format("  %d/%d  ", idx, #state.conflicts), "RubymineActionBar" },
-          { string.format(" >> CURRENT %s/gh ", short_lhs(km.take_left)), "RubymineIndicator" },
-          { string.format("  × DISCARD %s/gX  ", short_lhs(km.take_none)), "RubymineIndicatorX" },
-          { string.format(" << INCOMING %s/gl ", short_lhs(km.take_right)), "RubymineIndicatorRight" },
-          { string.format("  BOTH %s/gB ", short_lhs(km.take_both)), "RubymineActionBar" },
+          { string.format(" >> CURRENT %s ", short_lhs(km.take_left)), "RubymineIndicator" },
+          { string.format("  × DISCARD %s  ", short_lhs(km.take_none)), "RubymineIndicatorX" },
+          { string.format(" << INCOMING %s ", short_lhs(km.take_right)), "RubymineIndicatorRight" },
+          { string.format("  BOTH %s ", short_lhs(km.take_both)), "RubymineActionBar" },
         } },
         virt_lines_above = true,
       })
@@ -441,9 +440,9 @@ function M.open_layout(middle_bufnr, filepath)
     pcall(function()
       local fname = vim.fn.fnamemodify(filepath, ":t")
       local km = config.options.keymaps
-      vim.wo[state.left_win].winbar = "%#RubymineWinbarNC#  CURRENT · HEAD  %=%#RubymineIndicator# " .. short_lhs(km.take_left) .. "/gh >> RESULT "
+      vim.wo[state.left_win].winbar = "%#RubymineWinbarNC#  CURRENT · HEAD  %=%#RubymineIndicator# " .. short_lhs(km.take_left) .. " >> RESULT "
       vim.wo[state.middle_win].winbar = "%#RubymineWinbar#  RESULT · " .. fname .. "  %=%#RubymineWinbar# EDITABLE "
-      vim.wo[state.right_win].winbar = "%#RubymineIndicatorRight# RESULT << " .. short_lhs(km.take_right) .. "/gl %#RubymineWinbarNC#%=  INCOMING · MERGE_HEAD  "
+      vim.wo[state.right_win].winbar = "%#RubymineIndicatorRight# RESULT << " .. short_lhs(km.take_right) .. " %#RubymineWinbarNC#%=  INCOMING · MERGE_HEAD  "
       vim.api.nvim_win_set_option(state.left_win, "statusline", "%#RubymineWinbarNC#  CURRENT  %=%l:%c ")
       vim.api.nvim_win_set_option(state.middle_win, "statusline", middle_statusline())
       vim.api.nvim_win_set_option(state.right_win, "statusline", "%#RubymineWinbarNC#  INCOMING  %=%l:%c ")

@@ -275,10 +275,6 @@ function M.open(bufnr)
     map(km.next_conflict, function() jump("next") end, "Merge: next conflict")
     map(km.prev_conflict, function() jump("prev") end, "Merge: previous conflict")
     map(km.quit, function() ui.close() end, "Merge: close view")
-    map("gh", function() apply("left") end, "Merge: take CURRENT >>")
-    map("gl", function() apply("right") end, "Merge: take INCOMING <<")
-    map("gB", function() apply("both") end, "Merge: take both")
-    map("gX", function() apply("none") end, "Merge: discard conflict")
   end
 
   local merge_state = ui.get_state()

@@ -31,7 +31,7 @@ Like RubyMine / IntelliJ: **Left = CURRENT/Yours (`:2:`) | Middle = RESULT (edit
 - **Keybinds** for every action + `]c` / `[c` to jump between conflicts
 - Parses `<<<<<<<` / `=======` / `>>>>>>>` markers **and** tries `git show :2:` / `:3:` for accurate left/right buffers
 - **Conflict-aware sync** — all three panes centre on the same conflict on `]c`/`[c`, on take actions, and when the cursor enters a conflict in RESULT (`auto_follow`). No plain `scrollbind` — the three revisions have different line counts, so equal toplines would show different code.
-- **Live key labels** — the middle `statusline`, the side `winbar`s (`mh/gh >> RESULT` / `RESULT << ml/gl`), and the per-conflict action strip always show your **effective** keys. Custom `setup({ keymaps = ... })` overrides appear automatically; `gh`/`gl`/`gB`/`gX` are always-mapped aliases so the `/gh` part is always valid.
+- **Live key labels** — the middle `statusline`, the side `winbar`s (`mh >> RESULT` / `RESULT << ml`), and the per-conflict action strip always show your **effective** keys. Custom `setup({ keymaps = ... })` overrides appear automatically.
 
 ## Install
 
@@ -44,10 +44,10 @@ Like RubyMine / IntelliJ: **Left = CURRENT/Yours (`:2:`) | Middle = RESULT (edit
     require("mergeui").setup({
       view = "triple", -- "triple" (3 panes) | "single" (RESULT only)
       keymaps = {
-        take_left = "<leader>mh",  -- >> take CURRENT (also gh)
-        take_right = "<leader>ml", -- << take INCOMING (also gl)
-        take_both = "<leader>mb",  -- take both (also gB)
-        take_none = "<leader>mx",  -- X dismiss (also gX)
+        take_left = "<leader>mh",  -- >> take CURRENT
+        take_right = "<leader>ml", -- << take INCOMING
+        take_both = "<leader>mb",  -- take both
+        take_none = "<leader>mx",  -- X dismiss
         next_conflict = "]c",
         prev_conflict = "[c",
         quit = "<leader>mq",
@@ -74,23 +74,23 @@ require("mergeui").setup()
 2. `:MergeUI` (or `:RubymineMerge` / `:TriMerge` alias) — with no arg opens the conflict picker; `:MergeUI <file>` jumps straight to that file's 3-pane view
 3. Resolve in any pane — the same buffer-local keymaps are set on CURRENT, RESULT and INCOMING so global `gl` (diagnostics) etc. don't steal them:
 
-| Action | Default keys (what the buffer actually shows) | RubyMine indicator | Command |
+| Action | Default key (what the buffer shows) | RubyMine indicator | Command |
 | -------- | ------------- | ------------------- | --------- |
-| Take **left** (CURRENT/Yours) | `<leader>mh` / `gh` — shown as `mh/gh` | `>>` | `:MergeUITakeLeft` |
-| Take **right** (INCOMING/Theirs) | `<leader>ml` / `gl` — shown as `ml/gl` | `<<` | `:MergeUITakeRight` |
-| Take **both** | `<leader>mb` / `gB` — shown as `mb/gB` | `B` | `:MergeUITakeBoth` |
-| **Dismiss** (X) | `<leader>mx` / `gX` — shown as `mx/gX` | `×` | `:MergeUITakeNone` |
+| Take **left** (CURRENT/Yours) | `<leader>mh` — shown as `mh` | `>>` | `:MergeUITakeLeft` |
+| Take **right** (INCOMING/Theirs) | `<leader>ml` — shown as `ml` | `<<` | `:MergeUITakeRight` |
+| Take **both** | `<leader>mb` — shown as `mb` | `B` | `:MergeUITakeBoth` |
+| **Dismiss** (X) | `<leader>mx` — shown as `mx` | `×` | `:MergeUITakeNone` |
 | Next / Prev conflict | `]c` / `[c` | — | — |
 | Close merge view | `<leader>mq` — shown as `mq Quit` (+ live `N conflicts` count) | — | `:MergeUIClose` |
 | Toggle single/triple view | `<leader>mt` (`<leader>m1` single / `<leader>m3` triple) | — | `:MergeUIToggle` / `:MergeUISingle` / `:MergeUITriple` |
 
-What you see is what works:
+What you see is what works — one key per action, no aliases:
 
-- **Middle `statusline`:** `mh/gh Current  ml/gl Incoming  mb/gB Both  mx/gX Discard  ]c/[c  mq Quit  2 conflicts` (keys + live count).
-- **Side `winbar`s:** `mh/gh >> RESULT` on the left, `RESULT << ml/gl` on the right.
-- **Per-conflict action strip:** `1/2  >> CURRENT mh/gh  × DISCARD mx/gX  << INCOMING ml/gl  BOTH mb/gB` above each `<<<<<<<`.
+- **Middle `statusline`:** `mh Current  ml Incoming  mb Both  mx Discard  ]c/[c  mq Quit  2 conflicts` (keys + live count).
+- **Side `winbar`s:** `mh >> RESULT` on the left, `RESULT << ml` on the right.
+- **Per-conflict action strip:** `1/2  >> CURRENT mh  × DISCARD mx  << INCOMING ml  BOTH mb` above each `<<<<<<<`.
 
-If you override any `setup({ keymaps = { take_left = "<C-h>" } })`, every label updates to `<C-h>/gh` etc. — the README table and the buffer never drift.
+If you override any `setup({ keymaps = { take_left = "<C-h>" } })`, every label updates to `<C-h>` in all three places — the README table and the buffer never drift.
 
 Old commands `:RubymineMerge*` / `:TriMerge*` are aliases and still work. Active-session `:wq` expands to `:MergeUIWriteQuit` (write RESULT and return to the picker); plain `:w` keeps the 3 panes open; plain `:q` closes the layout.
 
